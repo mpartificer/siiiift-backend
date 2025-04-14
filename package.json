@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon server.js"
   },
   "keywords": [],
   "author": "",
