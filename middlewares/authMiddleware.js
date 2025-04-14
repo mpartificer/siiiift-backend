@@ -8,6 +8,11 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SER
 
 const authMiddleware = async (req, res, next) => {
   console.log(`Auth check for: ${req.method} ${req.originalUrl}`);
+
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
+
   console.log('Headers:', JSON.stringify(req.headers, null, 2));
 
   const authHeader = req.headers.authorization;
@@ -21,20 +26,25 @@ const authMiddleware = async (req, res, next) => {
   }
 
   const token = authHeader.split(' ')[1];
-  console.log('Token found, verifying with Supabase');
+  console.log('Token found:', token.substring(0, 10) + '...');
 
   try {
+    console.log('Verifying token with Supabase...');
     const { data, error } = await supabase.auth.getUser(token);
 
     if (error) {
       console.error('Supabase auth error:', error);
+      const isExpired =
+        error.message && (error.message.includes('expired') || error.message.includes('invalid'));
+
       return res.status(401).json({
         success: false,
-        message: 'Invalid or expired token',
+        message: isExpired ? 'Token has expired, please log in again' : 'Invalid token',
+        error: error.message,
       });
     }
 
-    if (!data.user) {
+    if (!data || !data.user) {
       console.log('No user found for token');
       return res.status(401).json({
         success: false,
@@ -54,6 +64,7 @@ const authMiddleware = async (req, res, next) => {
     return res.status(500).json({
       success: false,
       message: 'Authentication failed due to server error',
+      error: error.message,
     });
   }
 };

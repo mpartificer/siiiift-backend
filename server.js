@@ -5,6 +5,7 @@ const analyzeBakeEndpoint = require('./endpoints/bakes/analyzeBakeEndpoint.js');
 const postYourBakeEndpoint = require('./endpoints/bakes/postYourBakeEndpoint.js');
 const bakeEndpoints = require('./endpoints/bakes/bakeEndpoints');
 const engagementEndpoints = require('./endpoints/engagement/engagementEndpoints.js');
+const followingEndpoints = require('./endpoints/following/followingEndpoints.js');
 const authMiddleware = require('./middlewares/authMiddleware');
 
 const app = express();
@@ -27,6 +28,7 @@ app.use('/api', authMiddleware, postYourBakeEndpoint);
 app.use('/api', authMiddleware, analyzeBakeEndpoint);
 app.use('/api/bakes', authMiddleware, bakeEndpoints);
 app.use('/api/engagement', authMiddleware, engagementEndpoints);
+app.use('/api/follows', authMiddleware, followingEndpoints);
 
 app.use((err, req, res, next) => {
   console.error('Server error:', err);
