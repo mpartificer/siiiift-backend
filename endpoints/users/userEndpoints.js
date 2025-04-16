@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const followingService = require('../../services/following/followingService');
+const userService = require('../../services/users/userService');
 
 router.get('/:userId/followers', async (req, res, next) => {
   try {
     const { userId } = req.params;
-    const followers = await followingService.getFollowers(userId);
+    const followers = await userService.getFollowers(userId);
     res.json({
       success: true,
       data: followers,
@@ -18,7 +18,7 @@ router.get('/:userId/followers', async (req, res, next) => {
 router.get('/:userId/following', async (req, res, next) => {
   try {
     const { userId } = req.params;
-    const following = await followingService.getFollowing(userId);
+    const following = await userService.getFollowing(userId);
     res.json({
       success: true,
       data: following,
@@ -31,7 +31,7 @@ router.get('/:userId/following', async (req, res, next) => {
 router.get('/:userId/profile', async (req, res, next) => {
   try {
     const { userId } = req.params;
-    const profile = await followingService.getUserProfile(userId);
+    const profile = await userService.getUserProfile(userId);
     res.json({
       success: true,
       data: profile,
@@ -46,7 +46,7 @@ router.post('/:userId/follow', async (req, res, next) => {
     const { userId } = req.params;
     const followerId = req.user.id;
 
-    await followingService.followUser(followerId, userId);
+    await userService.followUser(followerId, userId);
     res.json({
       success: true,
       message: 'User followed successfully',
@@ -61,7 +61,7 @@ router.delete('/:userId/follow', async (req, res, next) => {
     const { userId } = req.params;
     const followerId = req.user.id;
 
-    await followingService.unfollowUser(followerId, userId);
+    await userService.unfollowUser(followerId, userId);
     res.json({
       success: true,
       message: 'User unfollowed successfully',

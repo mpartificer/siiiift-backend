@@ -2,6 +2,7 @@ const bakeRepository = require('../../repository/bakes/bakeRepository');
 const engagementRepository = require('../../repository/engagement/engagementRepository');
 const modificationRepository = require('../../repository/bakes/modificationRepository');
 const userRepository = require('../../repository/users/userRepository');
+const { supabase } = require('../../supabaseClient');
 
 class BakeService {
   async getBakeHistory(username, recipeId, currentUserAuthId) {
@@ -59,6 +60,32 @@ class BakeService {
       };
     } catch (error) {
       console.error('Error in getBakeHistory:', error);
+      throw error;
+    }
+  }
+
+  async getHomeFeed(currentUserAuthId) {
+    try {
+      console.log(`Getting home feed for user auth ID ${currentUserAuthId || 'guest'}`);
+
+      // Fetch bake details
+      const { data, error } = await supabase
+        .from('bake_details_view')
+        .select('*')
+        .order('baked_at', { ascending: false });
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        return { bakeDetails: [] };
+      }
+
+      return {
+        bakeDetails: data,
+        currentUserId: currentUserAuthId,
+      };
+    } catch (error) {
+      console.error('Error in getHomeFeed:', error);
       throw error;
     }
   }

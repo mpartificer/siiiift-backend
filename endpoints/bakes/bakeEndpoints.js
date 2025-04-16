@@ -29,4 +29,23 @@ router.get('/history/:username/:recipeId', async (req, res) => {
   }
 });
 
+router.get('/home', async (req, res) => {
+  try {
+    console.log(`Home feed request:
+        - URL: ${req.originalUrl}
+        - Authenticated: ${!!req.user}
+      `);
+
+    const currentUserAuthId = req.user ? req.user.id : null;
+    console.log(`Current user auth ID: ${currentUserAuthId || 'Not authenticated'}`);
+
+    const homeFeed = await bakeService.getHomeFeed(currentUserAuthId);
+
+    res.json(homeFeed);
+  } catch (error) {
+    console.error('Error fetching home feed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;
