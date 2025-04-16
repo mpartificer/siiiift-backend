@@ -1,6 +1,69 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
 const userService = require('../../services/users/userService');
+
+const storage = multer.memoryStorage();
+const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
+
+router.put('/bio', async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { bio } = req.body;
+
+    if (typeof bio !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Bio must be a string',
+      });
+    }
+
+    const updatedProfile = await userService.updateUserProfile(userId, { bio });
+
+    res.json({
+      success: true,
+      data: updatedProfile,
+      message: 'Bio updated successfully',
+    });
+  } catch (error) {
+    console.error('Error updating bio:', error);
+    next(error);
+  }
+});
+
+router.put('/photo', upload.single('photo'), async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded',
+      });
+    }
+
+    const fileExt = req.file.originalname.split('.').pop();
+    const fileName = `profiles/${userId}-${uuidv4()}.${fileExt}`;
+
+    const publicUrl = await uploadFile('Bake_Image', fileName, req.file.buffer, {
+      contentType: req.file.mimetype,
+    });
+
+    const updatedProfile = await userService.updateUserProfile(userId, { photo: publicUrl });
+
+    res.json({
+      success: true,
+      data: {
+        photo: publicUrl,
+        profile: updatedProfile,
+      },
+      message: 'Profile photo updated successfully',
+    });
+  } catch (error) {
+    console.error('Error updating profile photo:', error);
+    next(error);
+  }
+});
 
 router.get('/:userId/followers', async (req, res, next) => {
   try {

@@ -1,5 +1,6 @@
 const userRepository = require('../../repository/users/userRepository');
 const bakeRepository = require('../../repository/bakes/bakeRepository');
+const supabaseRepository = require('../../repository/images/supabaseUpload.js');
 
 class UserService {
   async getFollowers(userId) {
@@ -17,6 +18,28 @@ class UserService {
     } catch (error) {
       console.error('Error in getFollowing service:', error);
       throw new Error(`Failed to fetch following: ${error.message}`);
+    }
+  }
+
+  async updateUserProfile(userId, profileData) {
+    try {
+      const validFields = ['username', 'bio', 'photo'];
+      const filteredData = Object.keys(profileData)
+        .filter((key) => validFields.includes(key))
+        .reduce((obj, key) => {
+          obj[key] = profileData[key];
+          return obj;
+        }, {});
+
+      if (Object.keys(filteredData).length === 0) {
+        throw new Error('No valid profile fields to update');
+      }
+
+      const updatedProfile = await userRepository.updateUserProfile(userId, filteredData);
+      return updatedProfile;
+    } catch (error) {
+      console.error('Error in updateUserProfile service:', error);
+      throw new Error(`Failed to update user profile: ${error.message}`);
     }
   }
 
