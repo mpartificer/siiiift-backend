@@ -32,6 +32,23 @@ class RecipeRepository {
     return { data, count };
   }
 
+  async getSavesByUserId(userId) {
+    const { data, error } = await supabase
+      .from('saves_view')
+      .select(
+        `
+      recipe_id,
+      recipe_title,
+      recipe_images,
+      total_time
+    `
+      )
+      .eq('user_id', userId);
+
+    if (error) throw error;
+    return { data };
+  }
+
   async getSavesByRecipeId(recipeId) {
     const { data, error, count } = await supabase
       .from('saves')

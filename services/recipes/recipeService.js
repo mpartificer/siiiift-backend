@@ -1,4 +1,5 @@
 const recipeRepository = require('../../repository/recipes/recipeRepository');
+const userRepository = require('../../repository/users/userRepository');
 
 class RecipeService {
   async getRecipeDetails(recipeId) {
@@ -19,6 +20,29 @@ class RecipeService {
       const ratings = await recipeRepository.getRecipeRatings(recipeId);
       console.log(`Retrieved ratings for recipe ${recipeId}`);
       return ratings;
+    } catch (error) {
+      console.error(`Error getting recipe ratings:`, error);
+      throw error;
+    }
+  }
+
+  async getRecipeBox(userId) {
+    const userDetails = await userRepository.getUserById(userId);
+
+    const savedRecipes = await recipeRepository.getSavesByUserId(userId);
+
+    return {
+      ...userDetails,
+      savedRecipes,
+    };
+  }
+
+  async getSavesByUserId(userId) {
+    try {
+      console.log(`Getting saves by user ${userId}`);
+      const savedRecipes = await recipeRepository.getSavesByUserId(userId);
+      console.log(`Retrieved saves for user ${userId}`);
+      return savedRecipes;
     } catch (error) {
       console.error(`Error getting recipe ratings:`, error);
       throw error;

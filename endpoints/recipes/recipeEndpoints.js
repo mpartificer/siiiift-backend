@@ -17,6 +17,36 @@ router.get('/:recipeId', async (req, res) => {
   }
 });
 
+router.get('/saves/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    console.log(`API request: Get user's saved recipes user: ${userId}`);
+    const savedRecipes = await recipeService.getSavesByUserId(userId);
+
+    console.log(`Returning saves for user ${userId}`);
+    res.json(savedRecipes);
+  } catch (error) {
+    console.error('Error getting recipe ratings:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/recipebox/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    console.log(`API request: Get user's saved recipes user: ${userId}`);
+    const data = await recipeService.getRecipeBox(userId);
+
+    console.log(`Returning saves for user ${userId}`);
+    res.json(data);
+  } catch (error) {
+    console.error('Error getting recipe ratings:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.get('/:recipeId/ratings', async (req, res) => {
   try {
     const { recipeId } = req.params;
