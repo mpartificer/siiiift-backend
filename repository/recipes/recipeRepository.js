@@ -75,7 +75,7 @@ class RecipeRepository {
 
   async checkUserSave(userId, recipeId) {
     const { data, error } = await supabase
-      .from('user_recipe_saves')
+      .from('saves')
       .select('*')
       .eq('user_id', userId)
       .eq('recipe_id', recipeId)
@@ -90,7 +90,7 @@ class RecipeRepository {
 
   async addSave(userId, recipeId) {
     const { data, error } = await supabase
-      .from('user_recipe_saves')
+      .from('saves')
       .insert([{ user_id: userId, recipe_id: recipeId }]);
 
     if (error) throw error;
@@ -99,7 +99,7 @@ class RecipeRepository {
 
   async removeSave(userId, recipeId) {
     const { data, error } = await supabase
-      .from('user_recipe_saves')
+      .from('saves')
       .delete()
       .eq('user_id', userId)
       .eq('recipe_id', recipeId);

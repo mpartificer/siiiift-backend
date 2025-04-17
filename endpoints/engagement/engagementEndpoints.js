@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const engagementService = require('../../services/engagementServices');
+const userService = require('../../services/users/userService');
+const recipeService = require('../../services/recipes/recipeService');
 
 router.get('/like/count/:bakeId', async (req, res) => {
   try {
@@ -14,6 +16,55 @@ router.get('/like/count/:bakeId', async (req, res) => {
   } catch (error) {
     console.error('Error getting like count:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/search/:searchTerm', async (req, res, next) => {
+  try {
+    const { searchTerm } = req.params;
+
+    console.log(`API request: Search for "${searchTerm}"`);
+    console.log(`Authenticated user: ${req.user ? req.user.id : 'none'}`);
+
+    const [users, recipes] = await Promise.all([
+      userService.searchUsers(searchTerm),
+      recipeService.searchRecipes(searchTerm),
+    ]);
+
+    console.log(`Search results: ${users.length} users, ${recipes.length} recipes`);
+
+    const normalizedUsers = users.map((user) => {
+      if (!user.userId && user.id) {
+        user.userId = user.id;
+      }
+
+      console.log(
+        `Normalized user: id=${user.id}, userId=${user.userId}, username=${user.username}`
+      );
+
+      return user;
+    });
+
+    const normalizedRecipes = recipes.map((recipe) => {
+      if (!recipe.recipeId && recipe.id) {
+        recipe.recipeId = recipe.id;
+      }
+
+      console.log(
+        `Normalized recipe: id=${recipe.id}, recipeId=${recipe.recipeId}, title=${recipe.title}`
+      );
+
+      return recipe;
+    });
+
+    res.json({
+      users: normalizedUsers,
+      recipes: normalizedRecipes,
+      all: [...normalizedUsers, ...normalizedRecipes],
+    });
+  } catch (error) {
+    console.error('Error searching:', error);
+    next(error);
   }
 });
 

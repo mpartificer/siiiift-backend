@@ -70,9 +70,9 @@ class UserRepository {
 
   async checkFollowing(followerId, userId) {
     const { data, error } = await supabase
-      .from('user_following')
+      .from('user_following_view')
       .select('*')
-      .eq('follower_id', followerId)
+      .eq('user_id', followerId)
       .eq('following_id', userId)
       .single();
 
@@ -85,7 +85,7 @@ class UserRepository {
 
   async followUser(followerId, userId) {
     const { data, error } = await supabase
-      .from('user_following')
+      .from('followers')
       .insert([{ follower_id: followerId, following_id: userId }]);
 
     if (error) throw error;
@@ -94,7 +94,7 @@ class UserRepository {
 
   async unfollowUser(followerId, userId) {
     const { data, error } = await supabase
-      .from('user_following')
+      .from('followers')
       .delete()
       .eq('follower_id', followerId)
       .eq('following_id', userId);

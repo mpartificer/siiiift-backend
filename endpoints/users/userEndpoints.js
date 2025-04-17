@@ -159,4 +159,81 @@ router.delete('/:userId/follow', async (req, res, next) => {
   }
 });
 
+router.get('/:userId/following/check/:targetUserId', async (req, res, next) => {
+  try {
+    const { userId, targetUserId } = req.params;
+
+    console.log(`API request: Check if user ${userId} is following user ${targetUserId}`);
+    console.log(`Authenticated user: ${req.user ? req.user.id : 'none'}`);
+
+    if (req.user && req.user.id !== userId) {
+      console.warn(`User ${req.user.id} is checking follow status for ${userId}`);
+    }
+
+    const isFollowing = await userService.checkFollowing(userId, targetUserId);
+
+    console.log(`Returning isFollowing: ${isFollowing}`);
+    res.json({ isFollowing });
+  } catch (error) {
+    console.error('Error checking follow status:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/follow/toggle', async (req, res, next) => {
+  try {
+    const { followerId, followingId } = req.body;
+
+    console.log(`API request: Toggle follow for follower ${followerId}, following ${followingId}`);
+    console.log(`Request body:`, JSON.stringify(req.body));
+    console.log(`Authenticated user: ${req.user ? req.user.id : 'none'}`);
+
+    if (!followerId || !followingId) {
+      const missingParams = [];
+      if (!followerId) missingParams.push('followerId');
+      if (!followingId) missingParams.push('followingId');
+
+      const errorMsg = `Missing required parameters: ${missingParams.join(', ')}`;
+      console.error(errorMsg);
+      return res.status(400).json({
+        error: errorMsg,
+        receivedParams: req.body,
+      });
+    }
+
+    if (req.user && req.user.id !== followerId) {
+      console.warn(`User ${req.user.id} is trying to toggle follow for ${followerId}`);
+      return res.status(403).json({
+        error: 'You can only toggle your own follow status',
+        authenticatedUserId: req.user.id,
+        requestedFollowerId: followerId,
+      });
+    }
+
+    const isFollowing = await userService.checkFollowing(followerId, followingId);
+    console.log(
+      `Current follow status: User ${followerId} is following ${followingId}: ${isFollowing}`
+    );
+
+    if (isFollowing) {
+      console.log(`Unfollowing: User ${followerId} will unfollow ${followingId}`);
+      await userService.unfollowUser(followerId, followingId);
+      res.json({
+        isFollowing: false,
+        message: 'Successfully unfollowed user',
+      });
+    } else {
+      console.log(`Following: User ${followerId} will follow ${followingId}`);
+      await userService.followUser(followerId, followingId);
+      res.json({
+        isFollowing: true,
+        message: 'Successfully followed user',
+      });
+    }
+  } catch (error) {
+    console.error('Error toggling follow status:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

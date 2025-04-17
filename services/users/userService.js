@@ -87,6 +87,18 @@ class UserService {
     }
   }
 
+  async checkFollowing(followerId, userId) {
+    try {
+      console.log(`Checking if user ${followerId} is following user ${userId}`);
+      const isFollowing = await userRepository.checkFollowing(followerId, userId);
+      console.log(`User ${followerId} is following user ${userId}: ${isFollowing}`);
+      return isFollowing;
+    } catch (error) {
+      console.error('Error in checkFollowing service:', error);
+      throw new Error(`Failed to check follow status: ${error.message}`);
+    }
+  }
+
   async unfollowUser(followerId, userId) {
     try {
       return await userRepository.unfollowUser(followerId, userId);
