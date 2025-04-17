@@ -12,6 +12,21 @@ class UserRepository {
     return data;
   }
 
+  async checkUsernameAvailability(username) {
+    const { data, error } = await supabase
+      .from('usernames_view')
+      .select('username')
+      .eq('username', username)
+      .single();
+
+    if (error && error.code === 'PGRST116') {
+      return null; // Username not found, so it's available
+    }
+
+    if (error) throw error;
+    return data;
+  }
+
   async getUserById(userId) {
     const { data, error } = await supabase
       .from('user_profile')

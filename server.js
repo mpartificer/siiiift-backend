@@ -7,6 +7,7 @@ const bakeEndpoints = require('./endpoints/bakes/bakeEndpoints');
 const engagementEndpoints = require('./endpoints/engagement/engagementEndpoints.js');
 const userEndpoints = require('./endpoints/users/userEndpoints.js');
 const recipeEndpoint = require('./endpoints/recipes/recipeEndpoints.js');
+const authEndpoint = require('./endpoints/authEndpoints.js');
 const authMiddleware = require('./middlewares/authMiddleware');
 
 const app = express();
@@ -24,6 +25,8 @@ app.use(cors(corsOptions));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.use('/api/auth', authEndpoint);
 
 app.use('/api', authMiddleware, postYourBakeEndpoint);
 app.use('/api', authMiddleware, analyzeBakeEndpoint);

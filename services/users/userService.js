@@ -87,6 +87,15 @@ class UserService {
     }
   }
 
+  async checkUsernameAvailability(username) {
+    try {
+      const data = await userRepository.checkUsernameAvailability(username);
+      return data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   async checkFollowing(followerId, userId) {
     try {
       console.log(`Checking if user ${followerId} is following user ${userId}`);
