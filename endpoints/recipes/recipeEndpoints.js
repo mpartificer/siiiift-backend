@@ -2,6 +2,30 @@ const express = require('express');
 const router = express.Router();
 const recipeService = require('../../services/recipes/recipeService');
 
+router.get('/dropdown-data/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    console.log(`API request: Get recipe dropdown data for user ${userId}`);
+
+    if (req.user.id !== userId) {
+      return res.status(403).json({
+        error: 'You can only access your own recipe data',
+        authenticatedUserId: req.user.id,
+        requestedUserId: userId,
+      });
+    }
+
+    const dropdownData = await recipeService.getRecipeDropdownData(userId);
+
+    console.log(`Returning dropdown data for user ${userId}`);
+    res.json(dropdownData);
+  } catch (error) {
+    console.error('Error getting recipe dropdown data:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.get('/:recipeId', async (req, res) => {
   try {
     const { recipeId } = req.params;

@@ -28,7 +28,6 @@ class RecipeService {
 
   async getRecipeBox(userId) {
     const userDetails = await userRepository.getUserById(userId);
-
     const savedRecipes = await recipeRepository.getSavesByUserId(userId);
 
     return {
@@ -44,7 +43,25 @@ class RecipeService {
       console.log(`Retrieved saves for user ${userId}`);
       return savedRecipes;
     } catch (error) {
-      console.error(`Error getting recipe ratings:`, error);
+      console.error(`Error getting recipe saves:`, error);
+      throw error;
+    }
+  }
+
+  async getRecipeDropdownData(userId) {
+    try {
+      console.log(`Getting recipe dropdown data for user ${userId}`);
+      const savedRecipes = await recipeRepository.getSavesByUserId(userId);
+
+      const formattedRecipes = savedRecipes.map((recipe) => ({
+        recipe_id: recipe.recipe_id,
+        recipe_title: recipe.recipe_title,
+      }));
+
+      console.log(`Retrieved ${formattedRecipes.length} recipes for dropdown`);
+      return formattedRecipes;
+    } catch (error) {
+      console.error(`Error getting recipe dropdown data:`, error);
       throw error;
     }
   }

@@ -23,10 +23,7 @@ class RecipeRepository {
   }
 
   async getSavesByUserId(userId) {
-    const { data, error } = await supabase
-      .from('user_recipe_saves_view')
-      .select('*')
-      .eq('user_id', userId);
+    const { data, error } = await supabase.from('saves_view').select('*').eq('user_id', userId);
 
     if (error) throw error;
     return data || [];
