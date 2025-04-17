@@ -78,6 +78,15 @@ class UserService {
     }
   }
 
+  async getUserById(userId) {
+    try {
+      const user = await userRepository.getUserById(userId);
+      return user;
+    } catch (error) {
+      throw error;
+    }
+  }
+
   async unfollowUser(followerId, userId) {
     try {
       return await userRepository.unfollowUser(followerId, userId);

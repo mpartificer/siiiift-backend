@@ -65,6 +65,31 @@ router.put('/photo', upload.single('photo'), async (req, res, next) => {
   }
 });
 
+router.get('/:userId', async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    console.log(`Fetching user details for userId: ${userId}`);
+
+    const user = await userService.getUserById(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: user,
+      message: 'User details retrieved successfully',
+    });
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    next(error);
+  }
+});
+
 router.get('/:userId/followers', async (req, res, next) => {
   try {
     const { userId } = req.params;
