@@ -86,6 +86,27 @@ class UserService {
       throw new Error(`Failed to unfollow user: ${error.message}`);
     }
   }
+
+  async searchUsers(searchTerm) {
+    try {
+      console.log(`Searching for users with term: ${searchTerm}`);
+      const users = await userRepository.searchUsers(searchTerm);
+
+      const formattedUsers = users.map((user) => ({
+        id: user.user_auth_id,
+        userId: user.user_auth_id,
+        username: user.username,
+        photo: user.photo,
+        type: 'user',
+      }));
+
+      console.log(`Found ${formattedUsers.length} users matching '${searchTerm}'`);
+      return formattedUsers;
+    } catch (error) {
+      console.error('Error in searchUsers service:', error);
+      throw new Error(`Failed to search users: ${error.message}`);
+    }
+  }
 }
 
 module.exports = new UserService();

@@ -131,6 +131,27 @@ class RecipeService {
       throw error;
     }
   }
+
+  async searchRecipes(searchTerm) {
+    try {
+      console.log(`Searching for recipes with term: ${searchTerm}`);
+      const recipes = await recipeRepository.searchRecipes(searchTerm);
+
+      const formattedRecipes = recipes.map((recipe) => ({
+        id: recipe.id,
+        recipeId: recipe.id,
+        title: recipe.title,
+        images: recipe.images,
+        type: 'recipe',
+      }));
+
+      console.log(`Found ${formattedRecipes.length} recipes matching '${searchTerm}'`);
+      return formattedRecipes;
+    } catch (error) {
+      console.error(`Error searching recipes:`, error);
+      throw new Error(`Failed to search recipes: ${error.message}`);
+    }
+  }
 }
 
 module.exports = new RecipeService();

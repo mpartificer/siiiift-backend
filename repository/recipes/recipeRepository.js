@@ -14,83 +14,74 @@ class RecipeRepository {
 
   async getRecipeRatings(recipeId) {
     const { data, error } = await supabase
-      .from('bake_recipe_ratings')
+      .from('recipe_ratings')
       .select('*')
       .eq('recipe_id', recipeId);
 
     if (error) throw error;
-    return data;
-  }
-
-  async getLikesByRecipeId(recipeId) {
-    const { data, error, count } = await supabase
-      .from('likes')
-      .select('*', { count: 'exact' })
-      .eq('recipe_id', recipeId);
-
-    if (error) throw error;
-    return { data, count };
+    return data || [];
   }
 
   async getSavesByUserId(userId) {
     const { data, error } = await supabase
-      .from('saves_view')
-      .select(
-        `
-      recipe_id,
-      recipe_title,
-      recipe_images,
-      total_time
-    `
-      )
+      .from('user_recipe_saves_view')
+      .select('*')
       .eq('user_id', userId);
 
     if (error) throw error;
-    return { data };
+    return data || [];
   }
 
   async getSavesByRecipeId(recipeId) {
-    const { data, error, count } = await supabase
-      .from('saves')
-      .select('*', { count: 'exact' })
+    const { count, error } = await supabase
+      .from('user_recipe_saves')
+      .select('*', { count: 'exact', head: true })
       .eq('recipe_id', recipeId);
 
     if (error) throw error;
-    return { data, count };
+    return { count: count || 0 };
+  }
+
+  async getLikesByRecipeId(recipeId) {
+    const { count, error } = await supabase
+      .from('user_recipe_likes')
+      .select('*', { count: 'exact', head: true })
+      .eq('recipe_id', recipeId);
+
+    if (error) throw error;
+    return { count: count || 0 };
   }
 
   async getBakesByRecipeId(recipeId) {
-    const { data, error, count } = await supabase
-      .from('Bake_Details')
-      .select('*', { count: 'exact' })
+    const { count, error } = await supabase
+      .from('user_bakes')
+      .select('*', { count: 'exact', head: true })
       .eq('recipe_id', recipeId);
 
     if (error) throw error;
-    return { data, count };
+    return { count: count || 0 };
   }
 
   async getBakeDetailsView(recipeId) {
     const { data, error } = await supabase
-      .from('bake_details_view')
+      .from('user_bakes_details_view')
       .select('*')
-      .eq('recipe_id', recipeId);
+      .eq('recipe_id', recipeId)
+      .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data;
+    return data || [];
   }
 
   async checkUserSave(userId, recipeId) {
     const { data, error } = await supabase
-      .from('saves')
+      .from('user_recipe_saves')
       .select('*')
       .eq('user_id', userId)
       .eq('recipe_id', recipeId)
       .single();
 
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return false;
-      }
+    if (error && error.code !== 'PGRST116') {
       throw error;
     }
 
@@ -99,7 +90,7 @@ class RecipeRepository {
 
   async addSave(userId, recipeId) {
     const { data, error } = await supabase
-      .from('saves')
+      .from('user_recipe_saves')
       .insert([{ user_id: userId, recipe_id: recipeId }]);
 
     if (error) throw error;
@@ -107,13 +98,25 @@ class RecipeRepository {
   }
 
   async removeSave(userId, recipeId) {
-    const { error } = await supabase
-      .from('saves')
+    const { data, error } = await supabase
+      .from('user_recipe_saves')
       .delete()
       .eq('user_id', userId)
       .eq('recipe_id', recipeId);
 
     if (error) throw error;
+    return data;
+  }
+
+  async searchRecipes(searchTerm) {
+    const { data, error } = await supabase
+      .from('recipe_profile')
+      .select('id, title, images')
+      .ilike('title', `%${searchTerm}%`)
+      .limit(10);
+
+    if (error) throw error;
+    return data || [];
   }
 }
 

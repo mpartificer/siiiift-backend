@@ -1,4 +1,6 @@
 const likeRepository = require('../repository/engagement/engagementRepository');
+const userRepository = require('../repository/users/userRepository');
+const recipeRepository = require('../repository/recipes/recipeRepository');
 
 class EngagementService {
   async toggleLike(userId, bakeId, recipeId) {
@@ -31,6 +33,24 @@ class EngagementService {
           likeCount,
         };
       }
+    } catch (error) {
+      console.error(`Error toggling like:`, error);
+      throw error;
+    }
+  }
+
+  async getSearchResults(searchTerm) {
+    try {
+      const userResults = await userRepository.searchUsers(searchTerm);
+      console.log(`User results for ${searchTerm}`);
+
+      const recipeResults = await recipeRepository.searchRecipes(searchTerm);
+      console.log(`Recipe results for ${searchTerm}`);
+
+      return {
+        userResults,
+        recipeResults,
+      };
     } catch (error) {
       console.error(`Error toggling like:`, error);
       throw error;
