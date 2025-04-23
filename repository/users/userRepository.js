@@ -20,7 +20,7 @@ class UserRepository {
       .single();
 
     if (error && error.code === 'PGRST116') {
-      return null; // Username not found, so it's available
+      return null;
     }
 
     if (error) throw error;

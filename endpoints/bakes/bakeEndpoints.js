@@ -29,6 +29,23 @@ router.get('/history/:username/:recipeId', async (req, res) => {
   }
 });
 
+router.get('/user/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    if (!userId) {
+      return res.status(400).json({ success: false, message: 'Missing User ID' });
+    }
+    const userBakeHistory = await bakeService.getUsersBakes(userId);
+    console.log('im bake history', userBakeHistory);
+
+    res.json({ success: true, data: userBakeHistory });
+  } catch (error) {
+    console.error('Error fetching bake history:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 router.get('/home', async (req, res) => {
   try {
     console.log(`Home feed request:

@@ -68,7 +68,6 @@ class BakeService {
     try {
       console.log(`Getting home feed for user auth ID ${currentUserAuthId || 'guest'}`);
 
-      // Fetch bake details
       const { data, error } = await supabase
         .from('bake_details_view')
         .select('*')
@@ -87,6 +86,16 @@ class BakeService {
     } catch (error) {
       console.error('Error in getHomeFeed:', error);
       throw error;
+    }
+  }
+
+  async getUsersBakes(userId) {
+    try {
+      const usersBakes = await bakeRepository.getUsersBakes(userId);
+
+      return usersBakes;
+    } catch (error) {
+      console.error('Error retrieving User Bakes');
     }
   }
 }

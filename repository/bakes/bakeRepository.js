@@ -13,6 +13,16 @@ class BakeRepository {
     return data;
   }
 
+  async getUsersBakes(userId) {
+    const { data, error } = await supabase
+      .from('bake_details_view')
+      .select('*')
+      .eq('user_id', userId);
+
+    if (error) throw error;
+    return data || [];
+  }
+
   async getUserBakes(userId) {
     const { data, error } = await supabase
       .from('bake_details_view')
