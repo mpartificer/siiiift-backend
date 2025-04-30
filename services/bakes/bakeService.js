@@ -232,10 +232,7 @@ class BakeService {
     Keep the response friendly and constructive. Avoid referring to any "analysis" - instead, directly reference what you see in their photos.
     Focus on giving them practical advice for their next bake.`;
 
-    const finalResult = await model.generateContent(finalPrompt);
-    const finalResponse = await finalResult.response;
-
-    return finalResponse;
+    return finalPrompt;
   }
 
   async analyzeRecipe(recipePrompt) {
@@ -260,7 +257,6 @@ class BakeService {
     try {
       const imageInsights = await this.analyzeImage(imageUrls);
 
-      // Call the class method with 'this'
       const recipePrompt = await this.getRecipePrompt(
         hasModifications,
         originalInstructions,
@@ -272,12 +268,14 @@ class BakeService {
 
       const recipeInsights = await this.analyzeRecipe(recipePrompt);
 
-      const finalResponse = await this.getFinalPrompt(
+      const finalPrompt = await this.getFinalPrompt(
         recipeTitle,
         hasModifications,
         imageInsights,
         recipeInsights
       );
+      const finalResult = await model.generateContent(finalPrompt);
+      const finalResponse = await finalResult.response;
 
       return finalResponse.text();
     } catch (error) {
