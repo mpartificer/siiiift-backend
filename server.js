@@ -1,8 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
-const analyzeBakeEndpoint = require('./endpoints/bakes/analyzeBakeEndpoint.js');
-const postYourBakeEndpoint = require('./endpoints/bakes/postYourBakeEndpoint.js');
 const bakeEndpoints = require('./endpoints/bakes/bakeEndpoints');
 const engagementEndpoints = require('./endpoints/engagement/engagementEndpoints.js');
 const userEndpoints = require('./endpoints/users/userEndpoints.js');
@@ -28,8 +26,6 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use('/api/auth', authEndpoint);
 
-app.use('/api', authMiddleware, postYourBakeEndpoint);
-app.use('/api', authMiddleware, analyzeBakeEndpoint);
 app.use('/api/bakes', authMiddleware, bakeEndpoints);
 app.use('/api/engagement', authMiddleware, engagementEndpoints);
 app.use('/api/users', authMiddleware, userEndpoints);

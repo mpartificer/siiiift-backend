@@ -1,10 +1,291 @@
 const bakeRepository = require('../../repository/bakes/bakeRepository');
 const engagementRepository = require('../../repository/engagement/engagementRepository');
-const modificationRepository = require('../../repository/bakes/modificationRepository');
 const userRepository = require('../../repository/users/userRepository');
-const { supabase } = require('../../supabaseClient');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+const imageBlobMaker = require('../images/imageBlobMaker.js');
+const fileService = require('../images/uploadImage.js');
+const axios = require('axios');
+
+const apiKey = process.env.GOOGLE_API_KEY;
+const genAI = new GoogleGenerativeAI(apiKey);
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
 
 class BakeService {
+  async createBakePost(bakeData) {
+    const {
+      token,
+      userId,
+      files,
+      rating,
+      bakeDate,
+      recipeId,
+      recipeTitle,
+      ingredientModifications,
+      instructionModifications,
+    } = bakeData;
+
+    try {
+      const userData = await bakeRepository.validateUser(token);
+
+      if (userData.id !== userId) {
+        throw new Error('User ID mismatch');
+      }
+
+      const imageUrls = await fileService.uploadBakeImages(files);
+
+      const bake = await bakeRepository.createBake({
+        user_id: userId,
+        recipe_id: recipeId,
+        recipe_title: recipeTitle,
+        photos: imageUrls,
+        rating,
+        baked_at: bakeDate,
+      });
+
+      const { validIngredientMods, validInstructionMods } = await this.setModifications(
+        ingredientModifications,
+        instructionModifications,
+        userId,
+        bake,
+        recipeId
+      );
+
+      const userProfile = await bakeRepository.getUserProfile(userId);
+
+      const aiPayload = {
+        imageUrls,
+        recipeTitle,
+        hasModifications: validIngredientMods.length > 0 || validInstructionMods.length > 0,
+        originalInstructions: validInstructionMods.map((m) => m.originalInstruction),
+        modifiedInstructions: validInstructionMods.map((m) => m.modifiedInstruction),
+        originalIngredients: validIngredientMods.map((m) => m.originalIngredient),
+        modifiedIngredients: validIngredientMods.map((m) => m.modifiedIngredient),
+      };
+
+      this.triggerAiAnalysis(bake.id, aiPayload, token);
+
+      return {
+        bake,
+        redirectUrl: `/${userProfile.username}/${recipeId}`,
+      };
+    } catch (error) {
+      console.error('Error in bake service:', error);
+      throw new Error(`Failed to create bake post: ${error.message}`);
+    }
+  }
+
+  async setModifications(
+    ingredientModifications,
+    instructionModifications,
+    userId,
+    bake,
+    recipeId
+  ) {
+    const validIngredientMods = ingredientModifications.filter(
+      (mod) => mod.originalIngredient && mod.modifiedIngredient
+    );
+
+    const validInstructionMods = instructionModifications.filter(
+      (mod) => mod.originalInstruction && mod.modifiedInstruction
+    );
+
+    if (validIngredientMods.length > 0 || validInstructionMods.length > 0) {
+      await bakeRepository.saveModifications({
+        userId,
+        bakeId: bake.id,
+        recipeId,
+        ingredientModifications: validIngredientMods,
+        instructionModifications: validInstructionMods,
+      });
+    }
+
+    return {
+      validIngredientMods,
+      validInstructionMods,
+    };
+  }
+
+  async triggerAiAnalysis(bakeId, aiPayload, token) {
+    const edgeFunctionUrl = `${process.env.SUPABASE_URL}/functions/v1/analyze-bake`;
+
+    try {
+      console.log(`Triggering AI analysis for bake ${bakeId} with payload:`, {
+        imageCount: aiPayload.imageUrls.length,
+        recipeTitle: aiPayload.recipeTitle,
+        hasModifications: aiPayload.hasModifications,
+      });
+
+      const response = await axios.post(edgeFunctionUrl, aiPayload, {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      console.log(`AI analysis response status: ${response.status}`);
+
+      if (!response.data || !response.data.insights) {
+        console.error('Invalid or empty AI analysis response:', response.data);
+        throw new Error('Invalid AI analysis response');
+      }
+
+      console.log(`Received AI insights. Updating bake ${bakeId}`);
+
+      await bakeRepository.updateBakeInsights(bakeId, response.data.insights);
+
+      console.log(`AI analysis completed and insights stored for bake ${bakeId}`);
+      return true;
+    } catch (error) {
+      console.error(`Error in AI analysis for bake ${bakeId}:`, error);
+      console.error('Error details:', error.response?.data || error.message);
+
+      return false;
+    }
+  }
+  async updateBakeInsights(bakeId, insights) {
+    try {
+      return await bakeRepository.updateBakeInsights(bakeId, insights);
+    } catch (error) {
+      console.error('Error updating bake insights:', error);
+      throw new Error(`Failed to update bake insights: ${error.message}`);
+    }
+  }
+
+  async analyzeImage(imageUrls) {
+    const imageAnalysisPromises = imageUrls.map(async (url) => {
+      const imageData = await imageBlobMaker.getImageAsBase64(url);
+
+      const prompt =
+        'Analyze this baked good in detail. Assess the texture, color, shape, and overall appearance. Note any visible characteristics that might indicate potential improvements.';
+
+      const result = await model.generateContent({
+        contents: [
+          {
+            parts: [
+              { text: prompt },
+              {
+                inlineData: {
+                  mimeType: 'image/jpeg',
+                  data: imageData,
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const response = result.response;
+      return response.text();
+    });
+
+    const imageAnalyses = await Promise.all(imageAnalysisPromises);
+    const imageInsights = imageAnalyses.join('\n');
+
+    return imageInsights;
+  }
+
+  async getRecipePrompt(
+    hasModifications,
+    originalInstructions,
+    originalIngredients,
+    modifiedIngredients,
+    modifiedInstructions,
+    recipeTitle
+  ) {
+    let recipePrompt;
+
+    if (hasModifications && originalInstructions.length > 0 && originalIngredients.length > 0) {
+      recipePrompt = `Analyze this bake of "${recipeTitle}" with the following modifications:
+      
+      Original Ingredients: ${JSON.stringify(originalIngredients)}
+      Modified Ingredients: ${JSON.stringify(modifiedIngredients)}
+      
+      Original Instructions: ${JSON.stringify(originalInstructions)}
+      Modified Instructions: ${JSON.stringify(modifiedInstructions)}
+      
+      Evaluate how these modifications might have affected the final result and what improvements could be made.`;
+    } else {
+      recipePrompt = `Analyze this bake of "${recipeTitle}".
+      No modifications were made to the original recipe.
+      Based on the visual analysis, what techniques could be improved and what modifications might enhance the result?`;
+    }
+
+    return recipePrompt;
+  }
+
+  async getFinalPrompt(recipeTitle, hasModifications, imageInsights, recipeInsights) {
+    const finalPrompt = `You are providing feedback on a user's bake of "${recipeTitle}". 
+    Based on my analysis of the provided image(s) and ${hasModifications ? 'the recipe modifications they made' : 'the original recipe execution'}:
+
+    Image Analysis I Just Performed:
+    ${imageInsights}
+
+    Recipe Analysis I Just Performed:
+    ${recipeInsights}
+
+    Now, synthesize a helpful response to the user. Start with a brief comment about what you see in their bake photos.
+    Then provide clear, specific, and actionable insights for their next attempt. Include:
+    1. Technique improvements based on what you observe in their photos
+    2. ${hasModifications ? 'Suggestions to refine their modifications' : 'Potential beneficial modifications they could try'}
+    3. Specific tips for achieving better results
+
+    Keep the response friendly and constructive. Avoid referring to any "analysis" - instead, directly reference what you see in their photos.
+    Focus on giving them practical advice for their next bake.`;
+
+    const finalResult = await model.generateContent(finalPrompt);
+    const finalResponse = await finalResult.response;
+
+    return finalResponse;
+  }
+
+  async analyzeRecipe(recipePrompt) {
+    const recipeResult = await model.generateContent(recipePrompt);
+    const recipeResponse = await recipeResult.response;
+    const recipeInsights = recipeResponse.text();
+
+    return recipeInsights;
+  }
+
+  async analyzeBake(analysisData) {
+    const {
+      imageUrls,
+      recipeTitle,
+      hasModifications,
+      originalInstructions,
+      modifiedInstructions,
+      originalIngredients,
+      modifiedIngredients,
+    } = analysisData;
+
+    try {
+      const imageInsights = await this.analyzeImage(imageUrls);
+
+      // Call the class method with 'this'
+      const recipePrompt = await this.getRecipePrompt(
+        hasModifications,
+        originalInstructions,
+        originalIngredients,
+        modifiedIngredients,
+        modifiedInstructions,
+        recipeTitle
+      );
+
+      const recipeInsights = await this.analyzeRecipe(recipePrompt);
+
+      const finalResponse = await this.getFinalPrompt(
+        recipeTitle,
+        hasModifications,
+        imageInsights,
+        recipeInsights
+      );
+
+      return finalResponse.text();
+    } catch (error) {
+      console.error('Error in bake analysis service:', error);
+      throw new Error(`Failed to analyze bake: ${error.message}`);
+    }
+  }
+
   async getBakeHistory(username, recipeId, currentUserAuthId) {
     try {
       console.log(
@@ -20,7 +301,7 @@ class BakeService {
       const [bakeDetails, likeDetails, modificationDetails] = await Promise.all([
         bakeRepository.getBakesByUserAndRecipe(userData.user_auth_id, recipeId),
         engagementRepository.getLikesByRecipe(recipeId),
-        modificationRepository.getModificationsByRecipeAndUser(recipeId, userData.user_auth_id),
+        bakeRepository.getModificationsByRecipeAndUser(recipeId, userData.user_auth_id),
       ]);
 
       let currentUserData = null;
@@ -68,16 +349,7 @@ class BakeService {
     try {
       console.log(`Getting home feed for user auth ID ${currentUserAuthId || 'guest'}`);
 
-      const { data, error } = await supabase
-        .from('bake_details_view')
-        .select('*')
-        .order('baked_at', { ascending: false });
-
-      if (error) throw error;
-
-      if (!data || data.length === 0) {
-        return { bakeDetails: [] };
-      }
+      const data = await bakeRepository.getHomePage();
 
       return {
         bakeDetails: data,
