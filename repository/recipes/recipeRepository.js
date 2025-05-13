@@ -12,6 +12,53 @@ class RecipeRepository {
     return data;
   }
 
+  async createRecipe(recipeData) {
+    const { data, error } = await supabase
+      .from('recipe_profile')
+      .insert([
+        {
+          title: recipeData.title,
+          ingredients: recipeData.ingredients,
+          instructions: recipeData.instructions,
+          prep_time: recipeData.prep_time,
+          cook_time: recipeData.cook_time,
+          total_time: recipeData.total_time,
+          source: recipeData.source,
+          user_id: recipeData.user_id,
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async saveRecipeImage(recipeId, imageBase64, mimetype) {
+    const buffer = Buffer.from(imageBase64, 'base64');
+    const filename = `recipe_${recipeId}_${Date.now()}.${mimetype.split('/')[1]}`;
+
+    const { data, error } = await supabase.storage.from('recipe_images').upload(filename, buffer, {
+      contentType: mimetype,
+      upsert: false,
+    });
+
+    if (error) throw error;
+
+    const { data: urlData } = supabase.storage.from('recipe_images').getPublicUrl(filename);
+
+    const { error: updateError } = await supabase
+      .from('recipe_profile')
+      .update({
+        images: [urlData.publicUrl],
+      })
+      .eq('id', recipeId);
+
+    if (updateError) throw updateError;
+
+    return urlData.publicUrl;
+  }
+
   async getRecipeRatings(recipeId) {
     const { data, error } = await supabase
       .from('recipe_ratings')

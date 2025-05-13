@@ -1,6 +1,65 @@
 const express = require('express');
 const router = express.Router();
 const recipeService = require('../../services/recipes/recipeService');
+const multer = require('multer');
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
+
+router.post('/analyze', upload.array('images', 10), async (req, res) => {
+  try {
+    const { userId } = req.body;
+    console.log(`API request: Analyze recipe images for user ${userId}`);
+
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No images provided' });
+    }
+
+    if (req.user.id !== userId) {
+      return res.status(403).json({
+        error: 'Unauthorized action',
+        authenticatedUserId: req.user.id,
+        requestedUserId: userId,
+      });
+    }
+
+    const images = req.files.map((file) => ({
+      buffer: file.buffer,
+      mimetype: file.mimetype,
+      originalname: file.originalname,
+    }));
+
+    const recipeData = await recipeService.analyzeRecipeImages(images);
+
+    console.log(`Returning analyzed recipe data for user ${userId}`);
+    res.json(recipeData);
+  } catch (error) {
+    console.error('Error analyzing recipe images:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/store-recipe', async (req, res) => {
+  try {
+    const { userId, recipeData } = req.body;
+    console.log(`API request: Store processed recipe for user ${userId}`);
+
+    if (req.user.id !== userId) {
+      return res.status(403).json({
+        error: 'Unauthorized action',
+        authenticatedUserId: req.user.id,
+        requestedUserId: userId,
+      });
+    }
+
+    const savedRecipe = await recipeService.storeRecipe(userId, recipeData);
+
+    console.log(`Recipe saved successfully for user ${userId}`);
+    res.json(savedRecipe);
+  } catch (error) {
+    console.error('Error saving recipe:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 router.get('/dropdown-data/:userId', async (req, res) => {
   try {
