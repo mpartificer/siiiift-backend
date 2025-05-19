@@ -443,16 +443,13 @@ class RecipeService {
 
     try {
       const recipeToSave = {
-        user_id: userId,
         title: recipeData.title || 'Untitled Recipe',
         ingredients: recipeData.ingredients,
         instructions: recipeData.instructions,
-        prep_time: recipeData.prepTime,
-        cook_time: recipeData.cookTime,
-        total_time: recipeData.totalTime,
-        source: recipeData.originalAuthor || 'Unknown',
-        image_url: recipeData.defaultImage ? null : null,
-        original_text: recipeData.originalText || '',
+        prep_time: recipeData.prep_time,
+        cook_time: recipeData.cook_time,
+        total_time: recipeData.total_time,
+        original_link: recipeData.original_link || 'Unknown',
       };
 
       const savedRecipe = await recipeRepository.createRecipe(recipeToSave);

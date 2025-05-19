@@ -23,8 +23,8 @@ class RecipeRepository {
           prep_time: recipeData.prep_time,
           cook_time: recipeData.cook_time,
           total_time: recipeData.total_time,
-          source: recipeData.source,
-          user_id: recipeData.user_id,
+          original_link: recipeData.original_link,
+          created_at: new Date().toISOString(),
         },
       ])
       .select()
