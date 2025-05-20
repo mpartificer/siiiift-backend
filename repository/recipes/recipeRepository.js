@@ -61,7 +61,7 @@ class RecipeRepository {
 
   async getRecipeRatings(recipeId) {
     const { data, error } = await supabase
-      .from('recipe_ratings')
+      .from('bake_recipe_ratings')
       .select('*')
       .eq('recipe_id', recipeId);
 
@@ -108,10 +108,10 @@ class RecipeRepository {
 
   async getBakeDetailsView(recipeId) {
     const { data, error } = await supabase
-      .from('user_bakes_details_view')
+      .from('bake_details_view')
       .select('*')
       .eq('recipe_id', recipeId)
-      .order('created_at', { ascending: false });
+      .order('baked_at', { ascending: false });
 
     if (error) throw error;
     return data || [];
