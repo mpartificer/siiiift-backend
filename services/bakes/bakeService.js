@@ -2,7 +2,7 @@ const bakeRepository = require('../../repository/bakes/bakeRepository');
 const engagementRepository = require('../../repository/engagement/engagementRepository');
 const userRepository = require('../../repository/users/userRepository');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const imageBlobMaker = require('../images/imageBlobMaker.js');
+const imageBlobMaker = require('../images/imageService.js');
 const fileService = require('../images/uploadImage.js');
 const axios = require('axios');
 

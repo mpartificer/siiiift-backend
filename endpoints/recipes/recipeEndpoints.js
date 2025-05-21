@@ -28,7 +28,7 @@ router.post('/analyze', upload.array('images', 10), async (req, res) => {
       originalname: file.originalname,
     }));
 
-    const recipeData = await recipeService.analyzeRecipeImages(images);
+    const recipeData = await recipeService.extractTextFromImages(images);
 
     console.log(`Returning analyzed recipe data for user ${userId}`);
     res.json(recipeData);
