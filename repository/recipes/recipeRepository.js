@@ -77,7 +77,7 @@ class RecipeRepository {
 
   async getSavesByRecipeId(recipeId) {
     const { count, error } = await supabase
-      .from('user_recipe_saves')
+      .from('saves')
       .select('*', { count: 'exact', head: true })
       .eq('recipe_id', recipeId);
 
@@ -87,7 +87,7 @@ class RecipeRepository {
 
   async getLikesByRecipeId(recipeId) {
     const { count, error } = await supabase
-      .from('user_recipe_likes')
+      .from('likes')
       .select('*', { count: 'exact', head: true })
       .eq('recipe_id', recipeId);
 
@@ -97,7 +97,7 @@ class RecipeRepository {
 
   async getBakesByRecipeId(recipeId) {
     const { count, error } = await supabase
-      .from('user_bakes')
+      .from('Bake_Details')
       .select('*', { count: 'exact', head: true })
       .eq('recipe_id', recipeId);
 
