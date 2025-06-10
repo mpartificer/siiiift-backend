@@ -237,7 +237,7 @@ class BakeService {
 
   async analyzeRecipe(recipePrompt) {
     const recipeResult = await model.generateContent(recipePrompt);
-    const recipeResponse = await recipeResult.response;
+    const recipeResponse = recipeResult.response;
     const recipeInsights = recipeResponse.text();
 
     return recipeInsights;
@@ -275,7 +275,7 @@ class BakeService {
         recipeInsights
       );
       const finalResult = await model.generateContent(finalPrompt);
-      const finalResponse = await finalResult.response;
+      const finalResponse = finalResult.response;
 
       return finalResponse.text();
     } catch (error) {
