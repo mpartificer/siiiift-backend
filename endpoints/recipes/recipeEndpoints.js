@@ -175,6 +175,43 @@ router.get('/:recipeId/bakes', async (req, res) => {
   }
 });
 
+router.put('/:recipeId/update-image', async (req, res) => {
+  console.log('=== UPDATE IMAGE ENDPOINT CALLED ===');
+  console.log('Recipe ID:', req.params.recipeId);
+  console.log('Request body:', req.body);
+  console.log('Auth user:', req.user ? req.user.id : 'No auth user');
+
+  try {
+    const { recipeId } = req.params;
+    const { imageUrl } = req.body;
+
+    console.log('Extracted values:', { recipeId, imageUrl });
+
+    if (!imageUrl) {
+      console.error('No imageUrl provided in request body');
+      return res.status(400).json({ error: 'imageUrl is required' });
+    }
+
+    console.log('Calling recipeService.updateRecipeImage...');
+    const updatedRecipe = await recipeService.updateRecipeImage(recipeId, imageUrl);
+    console.log('Service returned:', updatedRecipe);
+
+    res.json({
+      success: true,
+      message: 'Recipe image updated successfully',
+      data: updatedRecipe,
+    });
+  } catch (error) {
+    console.error('=== ERROR in update-image endpoint ===');
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({
+      error: 'Failed to update recipe image',
+      details: error.message,
+    });
+  }
+});
+
 router.get('/:recipeId/saves/check/:userId', async (req, res) => {
   try {
     const { recipeId, userId } = req.params;

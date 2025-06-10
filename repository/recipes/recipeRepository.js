@@ -75,6 +75,24 @@ class RecipeRepository {
     return data || [];
   }
 
+  async updateRecipeImage(recipeId, imageUrl) {
+    console.log(`Updating recipe ${recipeId} image to: ${imageUrl}`);
+
+    const { data, error } = await supabase
+      .from('recipe_profile')
+      .update({ images: [imageUrl] })
+      .eq('id', recipeId)
+      .select();
+
+    if (error) {
+      console.error(`Error updating recipe image:`, error);
+      throw error;
+    }
+
+    console.log(`Successfully updated recipe ${recipeId} image`);
+    return data;
+  }
+
   async getSavesByRecipeId(recipeId) {
     const { count, error } = await supabase
       .from('saves')

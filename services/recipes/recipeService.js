@@ -441,6 +441,23 @@ class RecipeService {
     }
   }
 
+  async updateRecipeImage(recipeId, imageUrl) {
+    console.log('=== SERVICE: updateRecipeImage called ===');
+    console.log('Recipe ID:', recipeId);
+    console.log('Image URL:', imageUrl);
+
+    try {
+      console.log('Calling repository.updateRecipeImage...');
+      const updatedRecipe = await recipeRepository.updateRecipeImage(recipeId, imageUrl);
+      console.log('Repository returned:', updatedRecipe);
+      return updatedRecipe;
+    } catch (error) {
+      console.error('=== SERVICE ERROR ===');
+      console.error('Error in updateRecipeImage service:', error);
+      throw error;
+    }
+  }
+
   async getRecipeRatings(recipeId) {
     try {
       console.log(`Getting ratings for recipe ${recipeId}`);
