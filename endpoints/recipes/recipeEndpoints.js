@@ -43,6 +43,14 @@ router.post('/store-recipe', async (req, res) => {
     const { userId, recipeData } = req.body;
     console.log(`API request: Store processed recipe for user ${userId}`);
 
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    if (!recipeData) {
+      return res.status(400).json({ error: 'recipeData is required' });
+    }
+
     if (req.user.id !== userId) {
       return res.status(403).json({
         error: 'Unauthorized action',

@@ -158,3 +158,379 @@ describe('Recipe Endpoints - GET /:recipeId', () => {
     });
   });
 });
+
+describe('Recipe Endpoints - POST /store-recipe', () => {
+  let testUserId;
+  let storedRecipeIds = [];
+
+  function createAppWithAuth(userId) {
+    const testApp = express();
+    testApp.use(express.json());
+
+    testApp.use((req, res, next) => {
+      req.user = { id: userId };
+      next();
+    });
+
+    testApp.use('/recipes', recipeEndpoints);
+    return testApp;
+  }
+
+  beforeEach(async () => {
+    const { randomUUID } = require('crypto');
+    testUserId = randomUUID();
+    storedRecipeIds = [];
+  });
+
+  afterEach(async () => {
+    await cleanupStoredRecipes();
+  });
+
+  async function cleanupStoredRecipes() {
+    const { supabase } = require('../../../supabaseClient');
+
+    for (const recipeId of storedRecipeIds) {
+      try {
+        await supabase.from('recipe_profile').delete().eq('id', recipeId);
+        console.log(`Cleaned up stored recipe: ${recipeId}`);
+      } catch (error) {
+        console.error(`Error cleaning up recipe ${recipeId}:`, error);
+      }
+    }
+  }
+
+  describe('Successful recipe storage', () => {
+    test('should store recipe with valid data', async () => {
+      const app = createAppWithAuth(testUserId);
+
+      const recipeData = {
+        title: 'Test Stored Recipe',
+        ingredients: ['1 cup flour', '2 eggs', '1 cup milk'],
+        instructions: ['Mix ingredients', 'Cook in pan', 'Serve hot'],
+        prep_time: '10 minutes',
+        cook_time: '15 minutes',
+        total_time: '25 minutes',
+        original_link: 'https://test-recipe-store.com',
+      };
+
+      const requestData = {
+        userId: testUserId,
+        recipeData: recipeData,
+      };
+
+      const response = await request(app)
+        .post('/recipes/store-recipe')
+        .send(requestData)
+        .expect(200);
+
+      expect(response.body).toHaveProperty('id');
+      expect(response.body).toHaveProperty('title', recipeData.title);
+      expect(response.body).toHaveProperty('ingredients');
+      expect(response.body).toHaveProperty('instructions');
+      expect(response.body.prep_time).toBe(recipeData.prep_time);
+      expect(response.body.cook_time).toBe(recipeData.cook_time);
+      expect(response.body.total_time).toBe(recipeData.total_time);
+
+      storedRecipeIds.push(response.body.id);
+
+      const { supabase } = require('../../../supabaseClient');
+      const { data: storedRecipe, error } = await supabase
+        .from('recipe_profile')
+        .select('*')
+        .eq('id', response.body.id)
+        .single();
+
+      expect(error).toBeNull();
+      expect(storedRecipe.title).toBe(recipeData.title);
+      expect(storedRecipe.ingredients).toEqual(recipeData.ingredients);
+      expect(storedRecipe.instructions).toEqual(recipeData.instructions);
+    });
+
+    test('should store recipe with minimal data', async () => {
+      const app = createAppWithAuth(testUserId);
+
+      const recipeData = {
+        title: 'Minimal Recipe',
+        ingredients: ['ingredient 1'],
+        instructions: ['step 1'],
+      };
+
+      const requestData = {
+        userId: testUserId,
+        recipeData: recipeData,
+      };
+
+      const response = await request(app)
+        .post('/recipes/store-recipe')
+        .send(requestData)
+        .expect(200);
+
+      expect(response.body).toHaveProperty('id');
+      expect(response.body.title).toBe(recipeData.title);
+
+      storedRecipeIds.push(response.body.id);
+
+      const { supabase } = require('../../../supabaseClient');
+      const { data: storedRecipe } = await supabase
+        .from('recipe_profile')
+        .select('*')
+        .eq('id', response.body.id)
+        .single();
+
+      expect(storedRecipe.title).toBe(recipeData.title);
+      expect(storedRecipe.ingredients).toEqual(recipeData.ingredients);
+      expect(storedRecipe.instructions).toEqual(recipeData.instructions);
+    });
+
+    test('should handle recipe with no title (uses default)', async () => {
+      const app = createAppWithAuth(testUserId);
+
+      const recipeData = {
+        ingredients: ['test ingredient'],
+        instructions: ['test instruction'],
+        prep_time: '5 minutes',
+      };
+
+      const requestData = {
+        userId: testUserId,
+        recipeData: recipeData,
+      };
+
+      const response = await request(app)
+        .post('/recipes/store-recipe')
+        .send(requestData)
+        .expect(200);
+
+      expect(response.body.title).toBe('Untitled Recipe');
+
+      storedRecipeIds.push(response.body.id);
+    });
+
+    test('should store recipe with special characters and emojis', async () => {
+      const app = createAppWithAuth(testUserId);
+
+      const recipeData = {
+        title: 'Spécial Recipe with Émojis 🍰🎂',
+        ingredients: ['1 cup "special" flour', '2 eggs (large)', 'Salt & pepper'],
+        instructions: ['Mix with <love>', 'Bake @ 350°F', 'Enjoy! 😋'],
+        prep_time: '15 minutes',
+        original_link: 'https://special-chars.com/recipe?id=123&type=dessert',
+      };
+
+      const requestData = {
+        userId: testUserId,
+        recipeData: recipeData,
+      };
+
+      const response = await request(app)
+        .post('/recipes/store-recipe')
+        .send(requestData)
+        .expect(200);
+
+      expect(response.body.title).toBe(recipeData.title);
+
+      storedRecipeIds.push(response.body.id);
+
+      const { supabase } = require('../../../supabaseClient');
+      const { data: storedRecipe } = await supabase
+        .from('recipe_profile')
+        .select('*')
+        .eq('id', response.body.id)
+        .single();
+
+      expect(storedRecipe.title).toBe(recipeData.title);
+      expect(storedRecipe.ingredients).toEqual(recipeData.ingredients);
+      expect(storedRecipe.instructions).toEqual(recipeData.instructions);
+    });
+  });
+
+  describe('Authentication and authorization', () => {
+    test('should reject request when userId does not match authenticated user', async () => {
+      const differentUserId = require('crypto').randomUUID();
+      const app = createAppWithAuth(testUserId);
+
+      const recipeData = {
+        title: 'Unauthorized Recipe',
+        ingredients: ['ingredient'],
+        instructions: ['instruction'],
+      };
+
+      const requestData = {
+        userId: differentUserId,
+        recipeData: recipeData,
+      };
+
+      const response = await request(app)
+        .post('/recipes/store-recipe')
+        .send(requestData)
+        .expect(403);
+
+      expect(response.body).toHaveProperty('error', 'Unauthorized action');
+      expect(response.body).toHaveProperty('authenticatedUserId', testUserId);
+      expect(response.body).toHaveProperty('requestedUserId', differentUserId);
+    });
+
+    test('should handle missing authentication', async () => {
+      const noAuthApp = express();
+      noAuthApp.use(express.json());
+      noAuthApp.use('/recipes', recipeEndpoints);
+
+      const recipeData = {
+        title: 'Test Recipe',
+        ingredients: ['ingredient'],
+        instructions: ['instruction'],
+      };
+
+      const requestData = {
+        userId: testUserId,
+        recipeData: recipeData,
+      };
+
+      const response = await request(noAuthApp).post('/recipes/store-recipe').send(requestData);
+
+      expect(response.status).toBe(500);
+    });
+  });
+
+  describe('Error handling', () => {
+    test('should handle missing userId in request', async () => {
+      const app = createAppWithAuth(testUserId);
+
+      const recipeData = {
+        title: 'Recipe without userId',
+        ingredients: ['ingredient'],
+        instructions: ['instruction'],
+      };
+
+      const requestData = {
+        recipeData: recipeData,
+      };
+
+      const response = await request(app)
+        .post('/recipes/store-recipe')
+        .send(requestData)
+        .expect(400);
+
+      expect(response.body).toHaveProperty('error');
+    });
+
+    test('should handle missing recipeData in request', async () => {
+      const app = createAppWithAuth(testUserId);
+
+      const requestData = {
+        userId: testUserId,
+      };
+
+      const response = await request(app)
+        .post('/recipes/store-recipe')
+        .send(requestData)
+        .expect(400);
+
+      expect(response.body).toHaveProperty('error');
+    });
+
+    test('should handle service layer errors', async () => {
+      const app = createAppWithAuth(testUserId);
+
+      const recipeData = {
+        title: null,
+        ingredients: null,
+        instructions: null,
+      };
+
+      const requestData = {
+        userId: testUserId,
+        recipeData: recipeData,
+      };
+
+      const response = await request(app).post('/recipes/store-recipe').send(requestData);
+
+      if (response.status !== 200) {
+        expect(response.body).toHaveProperty('error');
+        expect(typeof response.body.error).toBe('string');
+      }
+
+      if (response.status === 200 && response.body.id) {
+        storedRecipeIds.push(response.body.id);
+      }
+    });
+  });
+
+  describe('Database integration', () => {
+    test('should generate unique IDs for multiple recipes', async () => {
+      const app = createAppWithAuth(testUserId);
+
+      const recipe1Data = {
+        title: 'Recipe 1',
+        ingredients: ['ingredient 1'],
+        instructions: ['instruction 1'],
+      };
+
+      const recipe2Data = {
+        title: 'Recipe 2',
+        ingredients: ['ingredient 2'],
+        instructions: ['instruction 2'],
+      };
+
+      const response1 = await request(app)
+        .post('/recipes/store-recipe')
+        .send({ userId: testUserId, recipeData: recipe1Data })
+        .expect(200);
+
+      const response2 = await request(app)
+        .post('/recipes/store-recipe')
+        .send({ userId: testUserId, recipeData: recipe2Data })
+        .expect(200);
+
+      expect(response1.body.id).not.toBe(response2.body.id);
+
+      storedRecipeIds.push(response1.body.id, response2.body.id);
+
+      const { supabase } = require('../../../supabaseClient');
+      const { data: recipes, error } = await supabase
+        .from('recipe_profile')
+        .select('*')
+        .in('id', [response1.body.id, response2.body.id]);
+
+      expect(error).toBeNull();
+      expect(recipes).toHaveLength(2);
+    });
+
+    test('should handle large recipe data', async () => {
+      const app = createAppWithAuth(testUserId);
+
+      const recipeData = {
+        title: 'Very Detailed Recipe with Long Title That Tests Database Limits',
+        ingredients: Array.from(
+          { length: 50 },
+          (_, i) => `Ingredient ${i + 1} with detailed description`
+        ),
+        instructions: Array.from(
+          { length: 30 },
+          (_, i) =>
+            `Step ${i + 1}: Very detailed instruction that explains exactly what to do in this step of the cooking process`
+        ),
+        prep_time: '2 hours 30 minutes',
+        cook_time: '4 hours 15 minutes',
+        total_time: '6 hours 45 minutes',
+        original_link:
+          'https://very-long-domain-name-for-testing.com/recipe/very-detailed-recipe-with-long-url?param1=value1&param2=value2',
+      };
+
+      const requestData = {
+        userId: testUserId,
+        recipeData: recipeData,
+      };
+
+      const response = await request(app)
+        .post('/recipes/store-recipe')
+        .send(requestData)
+        .expect(200);
+
+      expect(response.body.ingredients).toHaveLength(50);
+      expect(response.body.instructions).toHaveLength(30);
+
+      storedRecipeIds.push(response.body.id);
+    });
+  });
+});
