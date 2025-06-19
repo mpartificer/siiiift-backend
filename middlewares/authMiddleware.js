@@ -1,10 +1,4 @@
-const { createClient } = require('@supabase/supabase-js');
-
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
-  console.error('ERROR: Missing Supabase credentials in environment variables');
-}
-
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+const { supabase } = require('../supabaseClient');
 
 const authMiddleware = async (req, res, next) => {
   console.log(`Auth check for: ${req.method} ${req.originalUrl}`);
