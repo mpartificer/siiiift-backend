@@ -39,24 +39,6 @@ class EngagementService {
     }
   }
 
-  async getSearchResults(searchTerm) {
-    try {
-      const userResults = await userRepository.searchUsers(searchTerm);
-      console.log(`User results for ${searchTerm}`);
-
-      const recipeResults = await recipeRepository.searchRecipes(searchTerm);
-      console.log(`Recipe results for ${searchTerm}`);
-
-      return {
-        userResults,
-        recipeResults,
-      };
-    } catch (error) {
-      console.error(`Error toggling like:`, error);
-      throw error;
-    }
-  }
-
   async getLikeCount(bakeId) {
     try {
       console.log(`Getting like count for bake ${bakeId}`);

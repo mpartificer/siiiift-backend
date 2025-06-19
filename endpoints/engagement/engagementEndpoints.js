@@ -118,19 +118,4 @@ router.post('/like/:bakeId', async (req, res) => {
   }
 });
 
-router.get('/search/:searchTerm', async (req, res) => {
-  try {
-    const { searchTerm } = req.params;
-
-    console.log(`API request: Returning search results: ${searchTerm}`);
-    const searchResults = await engagementService.getSearchResults(searchTerm);
-
-    console.log(`Searching for ${searchTerm}`);
-    res.json(searchResults);
-  } catch (error) {
-    console.error('Error getting recipe ratings:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
 module.exports = router;
