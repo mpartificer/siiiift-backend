@@ -19,12 +19,14 @@ const supabaseEdgeLimiter = new Bottleneck({
 });
 
 supabaseEdgeLimiter.on('received', (info) => {
-  console.log(`Bottleneck: Request received. Queue size: ${info.queued}, Running: ${info.running}`);
+  console.log(
+    `Bottleneck: Request received. Queue size: ${supabaseEdgeLimiter.queued}, Running: ${supabaseEdgeLimiter.running}`
+  );
 });
 
 supabaseEdgeLimiter.on('done', (info) => {
   console.log(
-    `Bottleneck: Request completed. Queue size: ${info.queued}, Running: ${info.running}`
+    `Bottleneck: Request completed. Queue size: ${supabaseEdgeLimiter.queued}, Running: ${supabaseEdgeLimiter.running}`
   );
 });
 
