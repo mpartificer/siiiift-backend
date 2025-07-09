@@ -30,6 +30,9 @@ app.use('/api/bakes', authMiddleware, bakeEndpoints);
 app.use('/api/engagement', authMiddleware, engagementEndpoints);
 app.use('/api/users', authMiddleware, userEndpoints);
 app.use('/api/recipes', authMiddleware, recipeEndpoint);
+app.get('/ping', (req, res) => {
+  res.send('OK');
+});
 
 app.use((err, req, res, next) => {
   console.error('Server error:', err);
