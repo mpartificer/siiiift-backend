@@ -3,11 +3,32 @@ const userRepository = require('../../repository/users/userRepository');
 const imageService = require('../images/imageService');
 const sharp = require('sharp');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const Bottleneck = require('bottleneck');
 require('dotenv').config();
 
 const apiKey = process.env.GOOGLE_API_KEY;
 const genAI = new GoogleGenerativeAI(apiKey);
 const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+
+const geminiRecipeLimiter = new Bottleneck({
+  reservoir: 15,
+  reservoirRefreshAmount: 15,
+  reservoirRefreshInterval: 60 * 1000,
+  maxConcurrent: 2,
+  minTime: 2000,
+});
+
+geminiRecipeLimiter.on('received', () => {
+  console.log(
+    `Recipe AI: Request received. Queue=${geminiRecipeLimiter.queued()}, Running=${geminiRecipeLimiter.running()}, Reservoir=${geminiRecipeLimiter.reservoir()}`
+  );
+});
+
+geminiRecipeLimiter.on('done', () => {
+  console.log(
+    `Recipe AI: Request completed. Queue=${geminiRecipeLimiter.queued()}, Running=${geminiRecipeLimiter.running()}, Reservoir=${geminiRecipeLimiter.reservoir()}`
+  );
+});
 
 function logMemoryUsage(label) {
   const usage = process.memoryUsage();
@@ -72,15 +93,41 @@ class RecipeService {
     console.log(`Calling Gemini AI with ${imageParts.length} processed images...`);
     logMemoryUsage('Before Gemini AI call');
 
-    const result = await model.generateContent({
-      contents: [{ parts: partsForGemini }],
+    const rateLimitedAICall = geminiRecipeLimiter.wrap(async () => {
+      console.log(`Executing rate-limited Gemini AI call for recipe extraction...`);
+
+      try {
+        const result = await model.generateContent({
+          contents: [{ parts: partsForGemini }],
+        });
+
+        console.log(`🤖 Gemini AI call completed successfully`);
+        return result.response.text();
+      } catch (error) {
+        console.error(`Error in Gemini AI call:`, error);
+
+        if (error.message?.includes('rate limit') || error.status === 429) {
+          console.log(`Google rate limit hit, will retry automatically`);
+          throw new Error('Google API rate limit exceeded - request will be retried');
+        }
+
+        throw error;
+      }
     });
 
-    logMemoryUsage('After Gemini AI call');
-    console.log(`AI processing complete!`);
+    try {
+      const aiResult = await rateLimitedAICall();
 
-    logMemoryUsage('END - extractTextFromImages');
-    return result.response.text();
+      logMemoryUsage('After Gemini AI call');
+      console.log(`AI processing complete!`);
+      logMemoryUsage('END - extractTextFromImages');
+
+      return aiResult;
+    } catch (error) {
+      console.error(`Rate-limited AI call failed:`, error);
+      logMemoryUsage('ERROR - extractTextFromImages');
+      throw new Error(`Failed to extract recipe from images: ${error.message}`);
+    }
   }
 
   async processSingleImageOptimized(file, imageIndex) {
