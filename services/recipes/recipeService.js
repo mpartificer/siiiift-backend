@@ -101,7 +101,7 @@ class RecipeService {
           contents: [{ parts: partsForGemini }],
         });
 
-        console.log(`🤖 Gemini AI call completed successfully`);
+        console.log(`Gemini AI call completed successfully`);
         return result.response.text();
       } catch (error) {
         console.error(`Error in Gemini AI call:`, error);
@@ -116,6 +116,10 @@ class RecipeService {
     });
 
     try {
+      console.log(`Recipe AI: About to call bottleneck. Limiter exists: ${!!geminiRecipeLimiter}`);
+      console.log(
+        `Recipe AI: Limiter methods available: queued=${typeof geminiRecipeLimiter.queued}, wrap=${typeof geminiRecipeLimiter.wrap}`
+      );
       const aiResult = await rateLimitedAICall();
 
       logMemoryUsage('After Gemini AI call');
