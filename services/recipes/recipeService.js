@@ -18,13 +18,13 @@ const geminiRecipeLimiter = new Bottleneck({
   minTime: 2000,
 });
 
-geminiRecipeLimiter.on('received', () => {
+geminiRecipeLimiter.on('received', (info) => {
   console.log(
     `Recipe AI: Request received. Queue=${geminiRecipeLimiter.queued()}, Running=${geminiRecipeLimiter.running()}, Reservoir=${geminiRecipeLimiter.reservoir()}`
   );
 });
 
-geminiRecipeLimiter.on('done', () => {
+geminiRecipeLimiter.on('done', (info) => {
   console.log(
     `Recipe AI: Request completed. Queue=${geminiRecipeLimiter.queued()}, Running=${geminiRecipeLimiter.running()}, Reservoir=${geminiRecipeLimiter.reservoir()}`
   );
