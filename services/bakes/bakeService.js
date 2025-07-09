@@ -5,10 +5,28 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const imageBlobMaker = require('../images/imageService.js');
 const fileService = require('../images/uploadImage.js');
 const axios = require('axios');
+const Bottleneck = require('bottleneck');
 
 const apiKey = process.env.GOOGLE_API_KEY;
 const genAI = new GoogleGenerativeAI(apiKey);
 const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
+
+const supabaseEdgeLimiter = new Bottleneck({
+  reservoir: 10,
+  reservoirRefreshAmount: 10,
+  reservoirRefreshInterval: 60 * 1000,
+  maxConcurrent: 3,
+});
+
+supabaseEdgeLimiter.on('received', (info) => {
+  console.log(`Bottleneck: Request received. Queue size: ${info.queued}, Running: ${info.running}`);
+});
+
+supabaseEdgeLimiter.on('done', (info) => {
+  console.log(
+    `Bottleneck: Request completed. Queue size: ${info.queued}, Running: ${info.running}`
+  );
+});
 
 class BakeService {
   async createBakePost(bakeData) {
@@ -108,40 +126,55 @@ class BakeService {
   async triggerAiAnalysis(bakeId, aiPayload, token) {
     const edgeFunctionUrl = `${process.env.SUPABASE_URL}/functions/v1/analyze-bake`;
 
-    try {
-      console.log(`Triggering AI analysis for bake ${bakeId} with payload:`, {
-        imageCount: aiPayload.imageUrls.length,
-        recipeTitle: aiPayload.recipeTitle,
-        hasModifications: aiPayload.hasModifications,
-      });
+    const rateLimitedAnalysis = supabaseEdgeLimiter.wrap(async () => {
+      try {
+        console.log(`Triggering AI analysis for bake ${bakeId} with payload:`, {
+          imageCount: aiPayload.imageUrls.length,
+          recipeTitle: aiPayload.recipeTitle,
+          hasModifications: aiPayload.hasModifications,
+        });
 
-      const response = await axios.post(edgeFunctionUrl, aiPayload, {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      });
+        const response = await axios.post(edgeFunctionUrl, aiPayload, {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
-      console.log(`AI analysis response status: ${response.status}`);
+        console.log(`AI analysis response status: ${response.status}`);
 
-      if (!response.data || !response.data.insights) {
-        console.error('Invalid or empty AI analysis response:', response.data);
-        throw new Error('Invalid AI analysis response');
+        if (!response.data || !response.data.insights) {
+          console.error('Invalid or empty AI analysis response:', response.data);
+          throw new Error('Invalid AI analysis response');
+        }
+
+        console.log(`Received AI insights. Updating bake ${bakeId}`);
+
+        await bakeRepository.updateBakeInsights(bakeId, response.data.insights);
+
+        console.log(`AI analysis completed and insights stored for bake ${bakeId}`);
+        return true;
+      } catch (error) {
+        console.error(`Error in AI analysis for bake ${bakeId}:`, error);
+        console.error('Error details:', error.response?.data || error.message);
+
+        if (error.response?.status === 429) {
+          console.log(`Rate limit hit for bake ${bakeId}, will retry automatically`);
+          throw new Error('Rate limit exceeded - request will be retried');
+        }
+
+        return false;
       }
+    });
 
-      console.log(`Received AI insights. Updating bake ${bakeId}`);
-
-      await bakeRepository.updateBakeInsights(bakeId, response.data.insights);
-
-      console.log(`AI analysis completed and insights stored for bake ${bakeId}`);
-      return true;
+    try {
+      return await rateLimitedAnalysis();
     } catch (error) {
-      console.error(`Error in AI analysis for bake ${bakeId}:`, error);
-      console.error('Error details:', error.response?.data || error.message);
-
+      console.error(`Rate-limited AI analysis failed for bake ${bakeId}:`, error);
       return false;
     }
   }
+
   async updateBakeInsights(bakeId, insights) {
     try {
       return await bakeRepository.updateBakeInsights(bakeId, insights);
