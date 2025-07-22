@@ -54,16 +54,120 @@ class RecipeService {
     console.log(`Starting URL recipe extraction for: ${url}`);
 
     try {
+      console.log(`Checking if URL already exists in database: ${url}`);
+      const existingRecipe = await recipeRepository.findRecipeByUrl(url);
+
+      if (existingRecipe) {
+        console.log(`Recipe already exists for URL: ${url}, ID: ${existingRecipe.id}`);
+        return {
+          exists: true,
+          recipeId: existingRecipe.id,
+          title: existingRecipe.title,
+          url: url,
+        };
+      }
+
+      console.log(`No existing recipe found for URL: ${url}, proceeding with extraction`);
+
       const htmlContent = await this.scrapeWebpage(url);
 
       const aiResult = await this.processHtmlWithAI(htmlContent, url);
 
       console.log(`URL recipe extraction completed for: ${url}`);
-      return aiResult;
+      return {
+        exists: false,
+        recipeData: aiResult,
+        originalUrl: url,
+      };
     } catch (error) {
       console.error(`Error extracting recipe from URL: ${url}`, error);
       throw new Error(`Failed to extract recipe from URL: ${error.message}`);
     }
+  }
+
+  formatStructuredRecipeData(recipe, url) {
+    const formatTime = (time) => {
+      if (!time) return '';
+      if (typeof time === 'string' && time.startsWith('PT')) {
+        const match = time.match(/PT(?:(\d+)H)?(?:(\d+)M)?/);
+        if (match) {
+          const hours = match[1] ? parseInt(match[1]) : 0;
+          const minutes = match[2] ? parseInt(match[2]) : 0;
+          if (hours && minutes) return `${hours}h ${minutes}m`;
+          if (hours) return `${hours}h`;
+          if (minutes) return `${minutes}m`;
+        }
+      }
+      return time.toString();
+    };
+
+    const formatInstructions = (instructions) => {
+      if (!instructions) return [];
+      if (Array.isArray(instructions)) {
+        return instructions.map((inst) => {
+          if (typeof inst === 'string') return inst;
+          if (inst.text) return inst.text;
+          return inst.toString();
+        });
+      }
+      return [instructions.toString()];
+    };
+
+    const formatIngredients = (ingredients) => {
+      if (!ingredients) return [];
+      if (Array.isArray(ingredients)) {
+        return ingredients.map((ing) => {
+          if (typeof ing === 'string') return ing;
+          if (ing.text) return ing.text;
+          return ing.toString();
+        });
+      }
+      return [ingredients.toString()];
+    };
+
+    return JSON.stringify({
+      title: recipe.name || '',
+      ingredients: formatIngredients(recipe.recipeIngredient),
+      instructions: formatInstructions(recipe.recipeInstructions),
+      prep_time: formatTime(recipe.prepTime),
+      cook_time: formatTime(recipe.cookTime),
+      total_time: formatTime(recipe.totalTime),
+      original_author: url,
+    });
+  }
+
+  extractStructuredData($, url) {
+    const jsonLdScripts = $('script[type="application/ld+json"]');
+
+    for (let i = 0; i < jsonLdScripts.length; i++) {
+      try {
+        const jsonText = $(jsonLdScripts[i]).html();
+        const data = JSON.parse(jsonText);
+
+        const items = Array.isArray(data) ? data : [data];
+
+        for (const item of items) {
+          if (
+            item['@type'] === 'Recipe' ||
+            (item['@graph'] && item['@graph'].some((g) => g['@type'] === 'Recipe'))
+          ) {
+            const recipe =
+              item['@type'] === 'Recipe'
+                ? item
+                : item['@graph'].find((g) => g['@type'] === 'Recipe');
+
+            if (recipe) {
+              console.log('Successfully extracted structured recipe data');
+              return this.formatStructuredRecipeData(recipe, url);
+            }
+          }
+        }
+      } catch (e) {
+        console.log('Could not parse JSON-LD data, continuing...');
+      }
+    }
+
+    return null;
   }
 
   async scrapeWebpage(url) {
@@ -92,7 +196,7 @@ class RecipeService {
 
       const $ = cheerio.load(response.data);
 
-      const structuredData = this.extractStructuredData($);
+      const structuredData = this.extractStructuredData($, url);
       if (structuredData) {
         console.log('Found structured recipe data');
         return structuredData;
@@ -110,6 +214,70 @@ class RecipeService {
         throw new Error('Request timed out. Please try again.');
       }
       throw new Error(`Failed to scrape webpage: ${error.message}`);
+    }
+  }
+
+  async processHtmlWithAI(htmlContent, url) {
+    console.log(`Processing webpage content with AI for URL: ${url}`);
+    logMemoryUsage('Before URL AI processing');
+
+    if (htmlContent.startsWith('{') && htmlContent.endsWith('}')) {
+      try {
+        JSON.parse(htmlContent);
+        console.log('Content is already structured JSON, returning directly');
+        return htmlContent;
+      } catch (e) {
+        console.log('Content looks like JSON but is invalid, processing with AI');
+      }
+    }
+
+    const prompt = `Extract recipe information from this webpage content and return it as valid JSON. The JSON should contain exactly these fields: "title", "ingredients", "instructions", "prep_time", "cook_time", "total_time", and "original_author".
+
+Requirements:
+- title: string (recipe name)
+- ingredients: array of strings (each ingredient as a separate string)
+- instructions: array of strings (each step as a separate string) 
+- prep_time: string (e.g., "15 minutes", "1 hour")
+- cook_time: string (e.g., "30 minutes", "2 hours")  
+- total_time: string (e.g., "45 minutes", "3 hours")
+- original_author: string (should be "${url}")
+
+Return only the JSON object, starting with { and ending with }. Do not include any additional text or formatting.
+
+Webpage content:
+${htmlContent}`;
+
+    const rateLimitedAICall = geminiRecipeLimiter.wrap(async () => {
+      console.log(`Executing rate-limited Gemini AI call for URL recipe extraction...`);
+
+      try {
+        const result = await model.generateContent({
+          contents: [{ parts: [{ text: prompt }] }],
+        });
+
+        console.log(`Gemini AI call completed successfully for URL`);
+        return result.response.text();
+      } catch (error) {
+        console.error(`Error in Gemini AI call for URL:`, error);
+
+        if (error.message?.includes('rate limit') || error.status === 429) {
+          console.log(`Google rate limit hit for URL processing, will retry automatically`);
+          throw new Error('Google API rate limit exceeded - request will be retried');
+        }
+
+        throw error;
+      }
+    });
+
+    try {
+      const aiResult = await rateLimitedAICall();
+      logMemoryUsage('After URL AI processing');
+      console.log(`AI processing complete for URL: ${url}`);
+
+      return aiResult;
+    } catch (error) {
+      console.error(`Rate-limited AI call failed for URL:`, error);
+      throw new Error(`Failed to extract recipe from URL: ${error.message}`);
     }
   }
 

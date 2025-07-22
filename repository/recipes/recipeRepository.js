@@ -12,6 +12,20 @@ class RecipeRepository {
     return data;
   }
 
+  async findRecipeByUrl(url) {
+    const { data, error } = await supabase
+      .from('recipe_profile')
+      .select('id, title')
+      .eq('original_link', url)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      throw error;
+    }
+
+    return data;
+  }
+
   async createRecipe(recipeData) {
     const { data, error } = await supabase
       .from('recipe_profile')
