@@ -45,7 +45,7 @@ function logMemoryUsage(label) {
 function forceGC() {
   if (global.gc) {
     global.gc();
-    console.log('🗑️  Forced garbage collection');
+    console.log('Forced garbage collection');
   }
 }
 
@@ -54,34 +54,28 @@ class RecipeService {
     console.log(`Starting URL recipe extraction for: ${url}`);
 
     try {
-      console.log(`Checking if URL already exists in database: ${url}`);
-      const existingRecipe = await recipeRepository.findRecipeByUrl(url);
-
-      if (existingRecipe) {
-        console.log(`Recipe already exists for URL: ${url}, ID: ${existingRecipe.id}`);
-        return {
-          exists: true,
-          recipeId: existingRecipe.id,
-          title: existingRecipe.title,
-          url: url,
-        };
-      }
-
-      console.log(`No existing recipe found for URL: ${url}, proceeding with extraction`);
-
       const htmlContent = await this.scrapeWebpage(url);
 
       const aiResult = await this.processHtmlWithAI(htmlContent, url);
 
       console.log(`URL recipe extraction completed for: ${url}`);
-      return {
-        exists: false,
-        recipeData: aiResult,
-        originalUrl: url,
-      };
+
+      return aiResult;
     } catch (error) {
       console.error(`Error extracting recipe from URL: ${url}`, error);
       throw new Error(`Failed to extract recipe from URL: ${error.message}`);
+    }
+  }
+
+  async checkUrlExists(url) {
+    try {
+      console.log(`Checking if URL already exists: ${url}`);
+      const existingRecipe = await recipeRepository.findRecipeByUrl(url);
+      console.log(`URL check result:`, existingRecipe);
+      return existingRecipe;
+    } catch (error) {
+      console.error(`Error checking URL existence:`, error);
+      throw error;
     }
   }
 

@@ -55,9 +55,22 @@ router.post('/analyze-url', async (req, res) => {
       });
     }
 
+    const existingRecipe = await recipeService.checkUrlExists(url);
+
+    if (existingRecipe) {
+      console.log(`Recipe already exists for URL: ${url}, redirecting`);
+      return res.status(409).json({
+        exists: true,
+        recipeId: existingRecipe.id,
+        title: existingRecipe.title,
+        url: url,
+      });
+    }
+
     const recipeData = await recipeService.extractRecipeFromUrl(url);
 
     console.log(`Returning analyzed recipe data from URL for user ${userId}`);
+
     res.json(recipeData);
   } catch (error) {
     console.error('Error analyzing recipe URL:', error);
