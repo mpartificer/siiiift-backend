@@ -58,9 +58,34 @@ class RecipeService {
 
       const aiResult = await this.processHtmlWithAI(htmlContent, url);
 
-      console.log(`URL recipe extraction completed for: ${url}`);
+      let parsedResult;
+      try {
+        let cleanedResult = aiResult;
+        if (cleanedResult.startsWith('```json')) {
+          cleanedResult = cleanedResult.substring(7);
+        } else if (cleanedResult.startsWith('```')) {
+          cleanedResult = cleanedResult.substring(3);
+        }
+        if (cleanedResult.endsWith('```')) {
+          cleanedResult = cleanedResult.substring(0, cleanedResult.length - 3);
+        }
+        cleanedResult = cleanedResult.trim();
 
-      return aiResult;
+        parsedResult = JSON.parse(cleanedResult);
+
+        parsedResult.original_author = url;
+
+        console.log(`Forced original_author to URL: ${url}`);
+
+        const finalResult = JSON.stringify(parsedResult);
+        console.log(`URL recipe extraction completed for: ${url}`);
+
+        return finalResult;
+      } catch (parseError) {
+        console.error(`Error parsing AI result for URL ${url}:`, parseError);
+        console.log(`AI result was:`, aiResult);
+        throw new Error(`Failed to parse AI response: ${parseError.message}`);
+      }
     } catch (error) {
       console.error(`Error extracting recipe from URL: ${url}`, error);
       throw new Error(`Failed to extract recipe from URL: ${error.message}`);
@@ -119,7 +144,7 @@ class RecipeService {
       return [ingredients.toString()];
     };
 
-    return JSON.stringify({
+    const structuredData = {
       title: recipe.name || '',
       ingredients: formatIngredients(recipe.recipeIngredient),
       instructions: formatInstructions(recipe.recipeInstructions),
@@ -127,7 +152,10 @@ class RecipeService {
       cook_time: formatTime(recipe.cookTime),
       total_time: formatTime(recipe.totalTime),
       original_author: url,
-    });
+    };
+
+    console.log(`Structured data created with original_author: ${url}`);
+    return JSON.stringify(structuredData);
   }
 
   extractStructuredData($, url) {
