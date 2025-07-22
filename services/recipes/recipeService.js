@@ -5,6 +5,8 @@ const sharp = require('sharp');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const Bottleneck = require('bottleneck');
 require('dotenv').config();
+const axios = require('axios');
+const cheerio = require('cheerio');
 
 const apiKey = process.env.GOOGLE_API_KEY;
 const genAI = new GoogleGenerativeAI(apiKey);
@@ -48,6 +50,257 @@ function forceGC() {
 }
 
 class RecipeService {
+  async extractRecipeFromUrl(url) {
+    console.log(`Starting URL recipe extraction for: ${url}`);
+
+    try {
+      const htmlContent = await this.scrapeWebpage(url);
+
+      const aiResult = await this.processHtmlWithAI(htmlContent, url);
+
+      console.log(`URL recipe extraction completed for: ${url}`);
+      return aiResult;
+    } catch (error) {
+      console.error(`Error extracting recipe from URL: ${url}`, error);
+      throw new Error(`Failed to extract recipe from URL: ${error.message}`);
+    }
+  }
+
+  async scrapeWebpage(url) {
+    console.log(`Scraping webpage: ${url}`);
+
+    try {
+      const headers = {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        Connection: 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+      };
+
+      const response = await axios.get(url, {
+        headers,
+        timeout: 10000,
+        maxRedirects: 5,
+      });
+
+      if (response.status !== 200) {
+        throw new Error(`Failed to fetch webpage: HTTP ${response.status}`);
+      }
+
+      const $ = cheerio.load(response.data);
+
+      const structuredData = this.extractStructuredData($);
+      if (structuredData) {
+        console.log('Found structured recipe data');
+        return structuredData;
+      }
+
+      const extractedContent = this.extractRelevantContent($, url);
+      console.log(`Extracted ${extractedContent.length} characters of content`);
+
+      return extractedContent;
+    } catch (error) {
+      if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
+        throw new Error('Unable to reach the website. Please check the URL.');
+      }
+      if (error.code === 'ETIMEDOUT') {
+        throw new Error('Request timed out. Please try again.');
+      }
+      throw new Error(`Failed to scrape webpage: ${error.message}`);
+    }
+  }
+
+  extractStructuredData($) {
+    const jsonLdScripts = $('script[type="application/ld+json"]');
+
+    for (let i = 0; i < jsonLdScripts.length; i++) {
+      try {
+        const jsonText = $(jsonLdScripts[i]).html();
+        const data = JSON.parse(jsonText);
+
+        const items = Array.isArray(data) ? data : [data];
+
+        for (const item of items) {
+          if (
+            item['@type'] === 'Recipe' ||
+            (item['@graph'] && item['@graph'].some((g) => g['@type'] === 'Recipe'))
+          ) {
+            const recipe =
+              item['@type'] === 'Recipe'
+                ? item
+                : item['@graph'].find((g) => g['@type'] === 'Recipe');
+
+            if (recipe) {
+              console.log('Successfully extracted structured recipe data');
+              return this.formatStructuredRecipeData(recipe);
+            }
+          }
+        }
+      } catch (e) {
+        console.log('Could not parse JSON-LD data, continuing...');
+      }
+    }
+
+    return null;
+  }
+
+  formatStructuredRecipeData(recipe) {
+    const formatTime = (time) => {
+      if (!time) return '';
+      if (typeof time === 'string' && time.startsWith('PT')) {
+        const match = time.match(/PT(?:(\d+)H)?(?:(\d+)M)?/);
+        if (match) {
+          const hours = match[1] ? parseInt(match[1]) : 0;
+          const minutes = match[2] ? parseInt(match[2]) : 0;
+          if (hours && minutes) return `${hours}h ${minutes}m`;
+          if (hours) return `${hours}h`;
+          if (minutes) return `${minutes}m`;
+        }
+      }
+      return time.toString();
+    };
+
+    const formatInstructions = (instructions) => {
+      if (!instructions) return [];
+      if (Array.isArray(instructions)) {
+        return instructions.map((inst) => {
+          if (typeof inst === 'string') return inst;
+          if (inst.text) return inst.text;
+          return inst.toString();
+        });
+      }
+      return [instructions.toString()];
+    };
+
+    const formatIngredients = (ingredients) => {
+      if (!ingredients) return [];
+      if (Array.isArray(ingredients)) {
+        return ingredients.map((ing) => {
+          if (typeof ing === 'string') return ing;
+          if (ing.text) return ing.text;
+          return ing.toString();
+        });
+      }
+      return [ingredients.toString()];
+    };
+
+    return JSON.stringify({
+      title: recipe.name || '',
+      ingredients: formatIngredients(recipe.recipeIngredient),
+      instructions: formatInstructions(recipe.recipeInstructions),
+      prep_time: formatTime(recipe.prepTime),
+      cook_time: formatTime(recipe.cookTime),
+      total_time: formatTime(recipe.totalTime),
+      original_author: recipe.author?.name || recipe.author || '',
+    });
+  }
+
+  extractRelevantContent($, url) {
+    $('script, style, nav, header, footer, .ad, .advertisement, .sidebar, .comments').remove();
+
+    const recipeSelectors = [
+      '[itemtype*="Recipe"]',
+      '.recipe',
+      '.recipe-card',
+      '.recipe-content',
+      '.entry-content',
+      '.post-content',
+      'main',
+      'article',
+    ];
+
+    let content = '';
+
+    for (const selector of recipeSelectors) {
+      const elements = $(selector);
+      if (elements.length > 0) {
+        content = elements.first().text().trim();
+        if (content.length > 200) {
+          break;
+        }
+      }
+    }
+
+    if (!content || content.length < 200) {
+      content = $('body').text().trim();
+    }
+
+    content = content.replace(/\s+/g, ' ').replace(/\n+/g, '\n').trim();
+
+    if (content.length > 15000) {
+      content = content.substring(0, 15000) + '...';
+    }
+
+    return content;
+  }
+
+  async processHtmlWithAI(htmlContent, url) {
+    console.log(`Processing webpage content with AI for URL: ${url}`);
+    logMemoryUsage('Before URL AI processing');
+
+    if (htmlContent.startsWith('{') && htmlContent.endsWith('}')) {
+      try {
+        JSON.parse(htmlContent);
+        console.log('Content is already structured JSON, returning directly');
+        return htmlContent;
+      } catch (e) {
+        console.log('Content looks like JSON but is invalid, processing with AI');
+      }
+    }
+
+    const prompt = `Extract recipe information from this webpage content and return it as valid JSON. The JSON should contain exactly these fields: "title", "ingredients", "instructions", "prep_time", "cook_time", "total_time", and "original_author".
+  
+  Requirements:
+  - title: string (recipe name)
+  - ingredients: array of strings (each ingredient as a separate string)
+  - instructions: array of strings (each step as a separate string) 
+  - prep_time: string (e.g., "15 minutes", "1 hour")
+  - cook_time: string (e.g., "30 minutes", "2 hours")  
+  - total_time: string (e.g., "45 minutes", "3 hours")
+  - original_author: string (author/source name)
+  
+  Return only the JSON object, starting with { and ending with }. Do not include any additional text or formatting.
+  
+  Webpage content:
+  ${htmlContent}`;
+
+    const rateLimitedAICall = geminiRecipeLimiter.wrap(async () => {
+      console.log(`Executing rate-limited Gemini AI call for URL recipe extraction...`);
+
+      try {
+        const result = await model.generateContent({
+          contents: [{ parts: [{ text: prompt }] }],
+        });
+
+        console.log(`Gemini AI call completed successfully for URL`);
+        return result.response.text();
+      } catch (error) {
+        console.error(`Error in Gemini AI call for URL:`, error);
+
+        if (error.message?.includes('rate limit') || error.status === 429) {
+          console.log(`Google rate limit hit for URL processing, will retry automatically`);
+          throw new Error('Google API rate limit exceeded - request will be retried');
+        }
+
+        throw error;
+      }
+    });
+
+    try {
+      const aiResult = await rateLimitedAICall();
+      logMemoryUsage('After URL AI processing');
+      console.log(`AI processing complete for URL: ${url}`);
+
+      return aiResult;
+    } catch (error) {
+      console.error(`Rate-limited AI call failed for URL:`, error);
+      throw new Error(`Failed to extract recipe from URL: ${error.message}`);
+    }
+  }
+
   async extractTextFromImages(imageFiles) {
     logMemoryUsage('START - extractTextFromImages');
     console.log(`Processing ${imageFiles.length} recipe images with OPTIMIZED AI extraction`);

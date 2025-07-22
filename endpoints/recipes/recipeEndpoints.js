@@ -38,6 +38,33 @@ router.post('/analyze', upload.array('images', 10), async (req, res) => {
   }
 });
 
+router.post('/analyze-url', async (req, res) => {
+  try {
+    const { url, userId } = req.body;
+    console.log(`API request: Analyze recipe URL for user ${userId}`);
+
+    if (!url) {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+
+    if (req.user.id !== userId) {
+      return res.status(403).json({
+        error: 'Unauthorized action',
+        authenticatedUserId: req.user.id,
+        requestedUserId: userId,
+      });
+    }
+
+    const recipeData = await recipeService.extractRecipeFromUrl(url);
+
+    console.log(`Returning analyzed recipe data from URL for user ${userId}`);
+    res.json(recipeData);
+  } catch (error) {
+    console.error('Error analyzing recipe URL:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.post('/store-recipe', async (req, res) => {
   try {
     const { userId, recipeData } = req.body;
