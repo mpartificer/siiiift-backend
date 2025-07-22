@@ -56,6 +56,8 @@ class RecipeService {
     try {
       const htmlContent = await this.scrapeWebpage(url);
 
+      const imageUrl = await this.extractRecipeImage(url);
+
       const aiResult = await this.processHtmlWithAI(htmlContent, url);
 
       let parsedResult;
@@ -75,6 +77,13 @@ class RecipeService {
 
         parsedResult.original_author = url;
 
+        if (imageUrl) {
+          parsedResult.images = [imageUrl];
+          console.log(`Added recipe image: ${imageUrl}`);
+        } else {
+          console.log('No recipe image found on webpage');
+        }
+
         console.log(`Forced original_author to URL: ${url}`);
 
         const finalResult = JSON.stringify(parsedResult);
@@ -89,6 +98,188 @@ class RecipeService {
     } catch (error) {
       console.error(`Error extracting recipe from URL: ${url}`, error);
       throw new Error(`Failed to extract recipe from URL: ${error.message}`);
+    }
+  }
+
+  async extractRecipeImage(url) {
+    console.log(`Extracting recipe image from: ${url}`);
+
+    try {
+      const headers = {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        Connection: 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+      };
+
+      const response = await axios.get(url, {
+        headers,
+        timeout: 10000,
+        maxRedirects: 5,
+      });
+
+      if (response.status !== 200) {
+        console.log(`Failed to fetch webpage for image extraction: HTTP ${response.status}`);
+        return null;
+      }
+
+      const $ = cheerio.load(response.data);
+
+      const structuredImage = this.extractImageFromStructuredData($);
+      if (structuredImage) {
+        const absoluteImageUrl = this.makeAbsoluteUrl(structuredImage, url);
+        console.log(`Found structured data image: ${absoluteImageUrl}`);
+        return absoluteImageUrl;
+      }
+
+      const recipeImageUrl = this.extractImageFromSelectors($, url);
+      if (recipeImageUrl) {
+        console.log(`Found recipe image via selectors: ${recipeImageUrl}`);
+        return recipeImageUrl;
+      }
+
+      console.log('No recipe image found');
+      return null;
+    } catch (error) {
+      console.error('Error extracting recipe image:', error);
+      return null;
+    }
+  }
+
+  extractImageFromStructuredData($) {
+    const jsonLdScripts = $('script[type="application/ld+json"]');
+
+    for (let i = 0; i < jsonLdScripts.length; i++) {
+      try {
+        const jsonText = $(jsonLdScripts[i]).html();
+        const data = JSON.parse(jsonText);
+
+        const items = Array.isArray(data) ? data : [data];
+
+        for (const item of items) {
+          if (
+            item['@type'] === 'Recipe' ||
+            (item['@graph'] && item['@graph'].some((g) => g['@type'] === 'Recipe'))
+          ) {
+            const recipe =
+              item['@type'] === 'Recipe'
+                ? item
+                : item['@graph'].find((g) => g['@type'] === 'Recipe');
+
+            if (recipe && recipe.image) {
+              let imageUrl = recipe.image;
+
+              if (Array.isArray(imageUrl)) {
+                imageUrl = imageUrl[0];
+              }
+
+              if (typeof imageUrl === 'object' && imageUrl.url) {
+                imageUrl = imageUrl.url;
+              }
+
+              if (typeof imageUrl === 'string') {
+                return imageUrl;
+              }
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    return null;
+  }
+
+  extractImageFromSelectors($, baseUrl) {
+    const selectors = [
+      '[itemprop="image"]',
+
+      '.recipe-image img',
+      '.recipe-photo img',
+      '.recipe-hero img',
+      '.recipe-card img',
+      '.wp-block-image img',
+      '.entry-content img:first-of-type',
+
+      'meta[property="og:image"]',
+      'meta[name="twitter:image"]',
+
+      '.featured-image img',
+      '.post-thumbnail img',
+      '.hero-image img',
+      'article img:first-of-type',
+
+      'img[alt*="recipe" i]',
+      'img[src*="recipe" i]',
+      'main img:first-of-type',
+    ];
+
+    for (const selector of selectors) {
+      const element = $(selector).first();
+
+      if (element.length > 0) {
+        let imageUrl;
+
+        if (element.is('meta')) {
+          imageUrl = element.attr('content');
+        } else {
+          imageUrl =
+            element.attr('src') || element.attr('data-src') || element.attr('data-lazy-src');
+        }
+
+        if (imageUrl) {
+          const absoluteUrl = this.makeAbsoluteUrl(imageUrl, baseUrl);
+
+          if (this.isValidImageUrl(absoluteUrl)) {
+            return absoluteUrl;
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  makeAbsoluteUrl(imageUrl, baseUrl) {
+    try {
+      if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+        return imageUrl;
+      }
+
+      const base = new URL(baseUrl);
+
+      if (imageUrl.startsWith('//')) {
+        return base.protocol + imageUrl;
+      }
+
+      if (imageUrl.startsWith('/')) {
+        return base.origin + imageUrl;
+      }
+
+      return new URL(imageUrl, baseUrl).href;
+    } catch (error) {
+      console.error('Error making absolute URL:', error);
+      return imageUrl;
+    }
+  }
+
+  isValidImageUrl(url) {
+    try {
+      const urlObj = new URL(url);
+
+      const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
+      const pathname = urlObj.pathname.toLowerCase();
+
+      const hasImageExtension = imageExtensions.some((ext) => pathname.includes(ext));
+
+      const hasImageKeywords =
+        pathname.includes('image') || pathname.includes('photo') || pathname.includes('recipe');
+
+      return hasImageExtension || hasImageKeywords;
+    } catch (error) {
+      return false;
     }
   }
 
@@ -144,6 +335,24 @@ class RecipeService {
       return [ingredients.toString()];
     };
 
+    const formatImages = (images) => {
+      if (!images) return [];
+      if (Array.isArray(images)) {
+        return images.map((img) => {
+          if (typeof img === 'string') return this.makeAbsoluteUrl(img, url);
+          if (img.url) return this.makeAbsoluteUrl(img.url, url);
+          return img.toString();
+        });
+      }
+      if (typeof images === 'string') {
+        return [this.makeAbsoluteUrl(images, url)];
+      }
+      if (images.url) {
+        return [this.makeAbsoluteUrl(images.url, url)];
+      }
+      return [];
+    };
+
     const structuredData = {
       title: recipe.name || '',
       ingredients: formatIngredients(recipe.recipeIngredient),
@@ -152,12 +361,13 @@ class RecipeService {
       cook_time: formatTime(recipe.cookTime),
       total_time: formatTime(recipe.totalTime),
       original_author: url,
+      images: formatImages(recipe.image),
     };
 
     console.log(`Structured data created with original_author: ${url}`);
+    console.log(`Structured data images:`, structuredData.images);
     return JSON.stringify(structuredData);
   }
-
   extractStructuredData($, url) {
     const jsonLdScripts = $('script[type="application/ld+json"]');
 
@@ -671,11 +881,15 @@ ${htmlContent}`;
         cook_time: recipeData.cook_time,
         total_time: recipeData.total_time,
         original_link: recipeData.original_link || 'Unknown',
+        images: recipeData.images || [],
       };
+
+      console.log('Recipe data to save:', recipeToSave);
 
       const savedRecipe = await recipeRepository.createRecipe(recipeToSave);
 
       if (recipeData.defaultImage && recipeData.defaultImage.buffer) {
+        console.log('Processing legacy image upload for OCR recipe');
         await recipeRepository.saveRecipeImage(
           savedRecipe.id,
           recipeData.defaultImage.buffer,

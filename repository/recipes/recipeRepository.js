@@ -38,6 +38,7 @@ class RecipeRepository {
           cook_time: recipeData.cook_time,
           total_time: recipeData.total_time,
           original_link: recipeData.original_link,
+          images: recipeData.images || [],
         },
       ])
       .select()
