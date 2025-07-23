@@ -57,8 +57,6 @@ describe('Recipe Endpoints - GET /:recipeId', () => {
 
     if (error) throw error;
     testRecipeId = data.id;
-
-    console.log(`Created test recipe with ID: ${testRecipeId}`);
   }
 
   async function cleanupTestData() {
@@ -67,14 +65,11 @@ describe('Recipe Endpoints - GET /:recipeId', () => {
 
       await supabase.from('recipe_profile').delete().eq('id', testRecipeId);
 
-      console.log(`Cleaned up test recipe: ${testRecipeId}`);
       testRecipeId = null;
     }
   }
 
-  async function teardownTestDatabase() {
-    console.log('Test database teardown complete');
-  }
+  async function teardownTestDatabase() {}
 
   describe('Successful retrieval', () => {
     test('should return recipe details for valid recipe ID', async () => {
@@ -192,7 +187,6 @@ describe('Recipe Endpoints - POST /store-recipe', () => {
     for (const recipeId of storedRecipeIds) {
       try {
         await supabase.from('recipe_profile').delete().eq('id', recipeId);
-        console.log(`Cleaned up stored recipe: ${recipeId}`);
       } catch (error) {
         console.error(`Error cleaning up recipe ${recipeId}:`, error);
       }

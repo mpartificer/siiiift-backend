@@ -72,9 +72,6 @@ describe('Engagement Endpoints - GET /search/:searchTerm', () => {
 
     if (recipeError) throw recipeError;
     testRecipeId = recipeData.id;
-
-    console.log(`Created test user: ${testUserId}`);
-    console.log(`Created test recipe: ${testRecipeId}`);
   }
 
   async function cleanupTestData() {
@@ -82,14 +79,10 @@ describe('Engagement Endpoints - GET /search/:searchTerm', () => {
 
     if (testRecipeId) {
       await supabase.from('recipe_profile').delete().eq('id', testRecipeId);
-
-      console.log(`Cleaned up test recipe: ${testRecipeId}`);
     }
 
     if (testUserId) {
       await supabase.from('user_profile').delete().eq('user_auth_id', testUserId);
-
-      console.log(`Cleaned up test user: ${testUserId}`);
     }
   }
 

@@ -14,7 +14,6 @@ describe('User Endpoints - PUT /bio', () => {
     testApp.use(express.json());
 
     testApp.use((req, res, next) => {
-      console.log(`Auth middleware: Setting req.user.id to ${userId}`);
       req.user = { id: userId };
       next();
     });
@@ -30,7 +29,6 @@ describe('User Endpoints - PUT /bio', () => {
     app.use(express.json());
 
     app.use((req, res, next) => {
-      console.log(`Auth middleware: Setting req.user.id to ${testUserId}`);
       req.user = { id: testUserId };
       next();
     });
@@ -65,8 +63,6 @@ describe('User Endpoints - PUT /bio', () => {
       console.error('Error creating test user:', userError);
       throw userError;
     }
-
-    console.log(`Created test user: ${testUserId}`);
   }
 
   async function cleanupTestData() {
@@ -74,8 +70,6 @@ describe('User Endpoints - PUT /bio', () => {
 
     if (testUserId) {
       await supabase.from('user_profile').delete().eq('user_auth_id', testUserId);
-
-      console.log(`Cleaned up test user: ${testUserId}`);
     }
   }
 

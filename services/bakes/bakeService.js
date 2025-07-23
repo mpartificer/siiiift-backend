@@ -18,17 +18,9 @@ const supabaseEdgeLimiter = new Bottleneck({
   maxConcurrent: 3,
 });
 
-supabaseEdgeLimiter.on('received', (info) => {
-  console.log(
-    `Bottleneck: Request received. Queue size: ${supabaseEdgeLimiter.queued()}, Running: ${supabaseEdgeLimiter.running()}`
-  );
-});
+supabaseEdgeLimiter.on('received', (info) => {});
 
-supabaseEdgeLimiter.on('done', (info) => {
-  console.log(
-    `Bottleneck: Request completed. Queue size: ${supabaseEdgeLimiter.queued()}, Running: ${supabaseEdgeLimiter.running()}`
-  );
-});
+supabaseEdgeLimiter.on('done', (info) => {});
 
 class BakeService {
   async createBakePost(bakeData) {
@@ -130,12 +122,6 @@ class BakeService {
 
     const rateLimitedAnalysis = supabaseEdgeLimiter.wrap(async () => {
       try {
-        console.log(`Triggering AI analysis for bake ${bakeId} with payload:`, {
-          imageCount: aiPayload.imageUrls.length,
-          recipeTitle: aiPayload.recipeTitle,
-          hasModifications: aiPayload.hasModifications,
-        });
-
         const response = await axios.post(edgeFunctionUrl, aiPayload, {
           headers: {
             'Content-Type': 'application/json',
@@ -143,25 +129,19 @@ class BakeService {
           },
         });
 
-        console.log(`AI analysis response status: ${response.status}`);
-
         if (!response.data || !response.data.insights) {
           console.error('Invalid or empty AI analysis response:', response.data);
           throw new Error('Invalid AI analysis response');
         }
 
-        console.log(`Received AI insights. Updating bake ${bakeId}`);
-
         await bakeRepository.updateBakeInsights(bakeId, response.data.insights);
 
-        console.log(`AI analysis completed and insights stored for bake ${bakeId}`);
         return true;
       } catch (error) {
         console.error(`Error in AI analysis for bake ${bakeId}:`, error);
         console.error('Error details:', error.response?.data || error.message);
 
         if (error.response?.status === 429) {
-          console.log(`Rate limit hit for bake ${bakeId}, will retry automatically`);
           throw new Error('Rate limit exceeded - request will be retried');
         }
 
@@ -321,10 +301,6 @@ class BakeService {
 
   async getBakeHistory(username, recipeId, currentUserAuthId) {
     try {
-      console.log(
-        `Getting bake history for ${username}, recipe ${recipeId}, current user auth ID ${currentUserAuthId || 'guest'}`
-      );
-
       const userData = await userRepository.getUserByUsername(username);
 
       if (!userData || !userData.user_auth_id) {
@@ -341,7 +317,6 @@ class BakeService {
       if (currentUserAuthId) {
         try {
           currentUserData = await userRepository.getUserById(currentUserAuthId);
-          console.log(`Found current user data for ${currentUserAuthId}: ${!!currentUserData}`);
         } catch (e) {
           console.error(`Error fetching current user data: ${e.message}`);
         }
@@ -360,11 +335,6 @@ class BakeService {
         },
       };
 
-      console.log(`Current user details:`, {
-        hasUser: !!currentUserDetails.data.user,
-        userAuthId: currentUserDetails.data.user?.user_auth_id || 'none',
-      });
-
       return {
         profileData: userData,
         bakeDetails,
@@ -380,8 +350,6 @@ class BakeService {
 
   async getHomeFeed(currentUserAuthId) {
     try {
-      console.log(`Getting home feed for user auth ID ${currentUserAuthId || 'guest'}`);
-
       const data = await bakeRepository.getHomePage();
 
       return {

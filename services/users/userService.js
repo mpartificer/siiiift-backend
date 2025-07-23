@@ -98,9 +98,7 @@ class UserService {
 
   async checkFollowing(followerId, userId) {
     try {
-      console.log(`Checking if user ${followerId} is following user ${userId}`);
       const isFollowing = await userRepository.checkFollowing(followerId, userId);
-      console.log(`User ${followerId} is following user ${userId}: ${isFollowing}`);
       return isFollowing;
     } catch (error) {
       console.error('Error in checkFollowing service:', error);
@@ -119,7 +117,6 @@ class UserService {
 
   async searchUsers(searchTerm) {
     try {
-      console.log(`Searching for users with term: ${searchTerm}`);
       const users = await userRepository.searchUsers(searchTerm);
 
       const formattedUsers = users.map((user) => ({
@@ -130,7 +127,6 @@ class UserService {
         type: 'user',
       }));
 
-      console.log(`Found ${formattedUsers.length} users matching '${searchTerm}'`);
       return formattedUsers;
     } catch (error) {
       console.error('Error in searchUsers service:', error);

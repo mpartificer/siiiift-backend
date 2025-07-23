@@ -69,19 +69,11 @@ router.get('/history/:username/:recipeId', async (req, res) => {
   try {
     const { username, recipeId } = req.params;
 
-    console.log(`Bake history request:
-        - URL: ${req.originalUrl}
-        - Username: ${username}
-        - RecipeId: ${recipeId}
-        - Authenticated: ${!!req.user}
-      `);
-
     if (!username || !recipeId) {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
 
     const currentUserAuthId = req.user ? req.user.id : null;
-    console.log(`Current user auth ID: ${currentUserAuthId || 'Not authenticated'}`);
 
     const bakeHistory = await bakeService.getBakeHistory(username, recipeId, currentUserAuthId);
 
@@ -100,7 +92,6 @@ router.get('/user/:userId', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Missing User ID' });
     }
     const userBakeHistory = await bakeService.getUsersBakes(userId);
-    console.log('im bake history', userBakeHistory);
 
     res.json({ success: true, data: userBakeHistory });
   } catch (error) {
@@ -162,17 +153,9 @@ router.post('/post-bake', upload.array('files'), async (req, res) => {
 
 router.get('/home', async (req, res) => {
   try {
-    console.log(`Home feed request:
-        - URL: ${req.originalUrl}
-        - Authenticated: ${!!req.user}
-      `);
-
     const currentUserAuthId = req.user ? req.user.id : null;
-    console.log(`Current user auth ID: ${currentUserAuthId || 'Not authenticated'}`);
 
     const homeFeed = await bakeService.getHomeFeed(currentUserAuthId);
-
-    console.log(homeFeed);
 
     res.json(homeFeed);
   } catch (error) {

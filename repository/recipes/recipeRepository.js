@@ -91,8 +91,6 @@ class RecipeRepository {
   }
 
   async updateRecipeImage(recipeId, imageUrl) {
-    console.log(`Updating recipe ${recipeId} image to: ${imageUrl}`);
-
     const { data, error } = await supabase
       .from('recipe_profile')
       .update({ images: [imageUrl] })
@@ -104,7 +102,6 @@ class RecipeRepository {
       throw error;
     }
 
-    console.log(`Successfully updated recipe ${recipeId} image`);
     return data;
   }
 

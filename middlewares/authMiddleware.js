@@ -1,18 +1,13 @@
 const { supabase } = require('../supabaseClient');
 
 const authMiddleware = async (req, res, next) => {
-  console.log(`Auth check for: ${req.method} ${req.originalUrl}`);
-
   if (req.method === 'OPTIONS') {
     return next();
   }
 
-  console.log('Headers:', JSON.stringify(req.headers, null, 2));
-
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    console.log('Missing or invalid Authorization header');
     return res.status(401).json({
       success: false,
       message: 'Auth session missing!',
@@ -20,10 +15,8 @@ const authMiddleware = async (req, res, next) => {
   }
 
   const token = authHeader.split(' ')[1];
-  console.log('Token found:', token.substring(0, 10) + '...');
 
   try {
-    console.log('Verifying token with Supabase...');
     const { data, error } = await supabase.auth.getUser(token);
 
     if (error) {
@@ -39,14 +32,12 @@ const authMiddleware = async (req, res, next) => {
     }
 
     if (!data || !data.user) {
-      console.log('No user found for token');
       return res.status(401).json({
         success: false,
         message: 'No user found for token',
       });
     }
 
-    console.log(`User authenticated: ${data.user.id}`);
     req.user = {
       id: data.user.id,
       email: data.user.email,

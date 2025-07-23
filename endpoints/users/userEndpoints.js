@@ -68,7 +68,6 @@ router.put('/photo', upload.single('photo'), async (req, res, next) => {
 router.get('/:userId', async (req, res, next) => {
   try {
     const { userId } = req.params;
-    console.log(`Fetching user details for userId: ${userId}`);
 
     const user = await userService.getUserById(userId);
 
@@ -163,16 +162,12 @@ router.get('/:userId/following/check/:targetUserId', async (req, res, next) => {
   try {
     const { userId, targetUserId } = req.params;
 
-    console.log(`API request: Check if user ${userId} is following user ${targetUserId}`);
-    console.log(`Authenticated user: ${req.user ? req.user.id : 'none'}`);
-
     if (req.user && req.user.id !== userId) {
       console.warn(`User ${req.user.id} is checking follow status for ${userId}`);
     }
 
     const isFollowing = await userService.checkFollowing(userId, targetUserId);
 
-    console.log(`Returning isFollowing: ${isFollowing}`);
     res.json({ isFollowing });
   } catch (error) {
     console.error('Error checking follow status:', error);
@@ -183,10 +178,6 @@ router.get('/:userId/following/check/:targetUserId', async (req, res, next) => {
 router.post('/follow/toggle', async (req, res, next) => {
   try {
     const { followerId, followingId } = req.body;
-
-    console.log(`API request: Toggle follow for follower ${followerId}, following ${followingId}`);
-    console.log(`Request body:`, JSON.stringify(req.body));
-    console.log(`Authenticated user: ${req.user ? req.user.id : 'none'}`);
 
     if (!followerId || !followingId) {
       const missingParams = [];
@@ -211,19 +202,14 @@ router.post('/follow/toggle', async (req, res, next) => {
     }
 
     const isFollowing = await userService.checkFollowing(followerId, followingId);
-    console.log(
-      `Current follow status: User ${followerId} is following ${followingId}: ${isFollowing}`
-    );
 
     if (isFollowing) {
-      console.log(`Unfollowing: User ${followerId} will unfollow ${followingId}`);
       await userService.unfollowUser(followerId, followingId);
       res.json({
         isFollowing: false,
         message: 'Successfully unfollowed user',
       });
     } else {
-      console.log(`Following: User ${followerId} will follow ${followingId}`);
       await userService.followUser(followerId, followingId);
       res.json({
         isFollowing: true,
